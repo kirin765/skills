@@ -1,0 +1,24 @@
+{
+  "_comment_": "POST /public/v1/posts 페이로드 스켈레톤. scripts/postiz.mjs 쓰면 이거 직접 만질 일 없음.",
+  "type": "schedule",
+  "date": "2026-05-28T01:00:00.000Z",
+  "shortLink": false,
+  "tags": [],
+  "posts": [
+    {
+      "integration": { "id": "REPLACE_WITH_INTEGRATION_ID" },
+      "value": [
+        {
+          "content": "본문 텍스트",
+          "image": [
+            { "id": "REPLACE_WITH_IMAGE_ID", "path": "https://uploads.postiz.com/REPLACE.jpg" }
+          ]
+        }
+      ],
+      "settings": {
+        "__type": "x",
+        "who_can_reply_post": "everyone"
+      }
+    }
+  ]
+}

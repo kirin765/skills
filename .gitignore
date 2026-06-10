@@ -1,0 +1,10 @@
+.DS_Store
+*.log
+
+# generated app/run workspaces (regenerable, not skill source)
+android-app-builder-workspace/
+naver-seo-workspace/
+
+# scraped raw corpora + derived signals (regenerable, large)
+dcinside-sales-safari/scripts/raw/
+dcinside-sales-safari/scripts/signals/

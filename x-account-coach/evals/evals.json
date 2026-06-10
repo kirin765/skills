@@ -1,0 +1,26 @@
+{
+  "skill_name": "x-account-coach",
+  "evals": [
+    {
+      "id": 1,
+      "name": "korean-trigger-with-project-context",
+      "prompt": "내 다음 X 트윗 뭐 올릴까? 채널가드 빌드 인 퍼블릭 톤으로",
+      "expected_output": "스킬 발동, --probe 검증 후 타임라인 수집, docs/NON-DEV-PLAYBOOK.md + docs/NON-DEV-CALENDAR.md 자동 로드, 오늘 슬롯 + 주차 focus 명시, 후보 3개 (서로 다른 각도, char count 표기, founder positioning 일관, 거짓 숫자 금지)",
+      "files": ["docs/NON-DEV-PLAYBOOK.md", "docs/NON-DEV-CALENDAR.md"]
+    },
+    {
+      "id": 2,
+      "name": "english-trigger-no-handle",
+      "prompt": "what should I post next on X? look at my recent tweets first",
+      "expected_output": "스킬 발동, 핸들 모르므로 사용자에게 한 번만 물음, 그 후 수집·분석·후보 3개 출력. 영어 트리거에서도 정확히 발동.",
+      "files": ["docs/NON-DEV-PLAYBOOK.md", "docs/NON-DEV-CALENDAR.md"]
+    },
+    {
+      "id": 3,
+      "name": "no-project-context",
+      "prompt": "내 X 최근 트윗 보고 다음 거 추천해줘",
+      "expected_output": "cwd 에 playbook/calendar 없으면 '프로젝트 컨텍스트 부재 → 일반 추천만 가능' 고지 후 진행 여부 사용자에게 묻기. 진행하면 일반 톤 추천 3개. 거짓 숫자 절대 X.",
+      "files": []
+    }
+  ]
+}
