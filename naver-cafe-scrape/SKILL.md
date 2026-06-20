@@ -95,6 +95,36 @@ python ~/.claude/skills/naver-cafe-scrape/scripts/scrape_naver_cafe.py \
   --cafe tazza4 --probe-article 334844
 ```
 
+## node raw-CDP 폴백 + 키워드 검색 (Playwright 안 될 때)
+
+일부 Chrome(예: chrome-cdp-profile)은 **Playwright `connectOverCDP` 와 Network 도메인·
+Page.navigate 가 비활성**이라 위 Python 스크립트(Playwright 의존)가 행/실패한다. 이때는
+node raw-CDP 스크립트를 쓴다. 안정적으로 동작하는 것만 사용: `Network.getAllCookies` +
+`Runtime.evaluate`(navigation 없이) + 추출 쿠키로 **node 서버사이드 fetch(CORS 없음)**.
+
+```bash
+# 사전 확인 (CDP 응답 + 쿠키 + club_id + list API 동작)
+node ~/.claude/skills/naver-cafe-scrape/scripts/scrape_naver_cafe_cdp.mjs --cafe soho --probe
+
+# 키워드 검색 — archive 검색 REST 가 폐기되어, ArticleListV2(전체글 최신피드)를
+# --pages 만큼 페이지네이션하며 제목 grep. 키워드는 공백 분리 OR 매치.
+node .../scrape_naver_cafe_cdp.mjs --cafe soho --search "쿠팡 정산" --pages 40
+node .../scrape_naver_cafe_cdp.mjs --cafe soho --search "정산 수수료" --pages 40 --body   # 매치글 본문 스니펫 포함
+node .../scrape_naver_cafe_cdp.mjs --cafe soho --search 정산 --pages 20 --deep            # 본문까지 grep(느림)
+
+# 단일 글 본문
+node .../scrape_naver_cafe_cdp.mjs --cafe soho --article 4064913
+# club_id 알면 resolve 생략
+node .../scrape_naver_cafe_cdp.mjs --club 10094408 --search 정산
+```
+
+검색 결과는 `cafe_{cafe}_search.json` 에 저장(`--out` 로 변경). 매치 = {id, subject, writer,
+date, read, cmt, (bodySnippet)}.
+
+**한계:** 카페 키워드 검색 REST 는 전부 폐기/변경됨(`cafe2/ArticleSearchList*`=API없음,
+`cafe-search-api/v3·v1`=404). 그래서 검색은 "최신글 N페이지 스캔 + grep" 우회라 **과거
+archive 전체 검색은 불가**. 오래된 특정 글은 글 URL/articleId 를 받아 `--article` 로 직접 fetch.
+
 ## 권장 실행 흐름
 
 1. **확인 단계** — `--probe` 만으로 사전 조건 4가지 검증. 막히는 게시판이 있으면 사용자에게 보고하고 결정 받음.

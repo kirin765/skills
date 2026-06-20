@@ -152,7 +152,7 @@ def main():
         msg = f"API error {e.resp.status}: {e}"
         if e.resp.status in (401, 403):
             msg += ("\n→ service account lacks read access to this app, or package wrong. "
-                    "Grant claude-google-play@claude-android-upload.iam.gserviceaccount.com "
+                    "Grant play-publisher@claude-for-android.iam.gserviceaccount.com "
                     "in Play Console → Users and permissions.")
         print(msg, file=sys.stderr)
         sys.exit(1)

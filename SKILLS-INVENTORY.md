@@ -9,12 +9,10 @@
 
 ## A. 사용자 제작 스킬 (personal)
 
-### Play / Android 출시
+### Play / Android 출시 + 게임 개발 (단일 스킬)
 | 스킬 | 용도 |
 |---|---|
-| `android-app-builder` | 아이디어 → 네이티브 Kotlin 앱 → Play Console 검토 제출까지 오케스트레이터 |
-| `play-store-submit` | Play Console 신규 등록·업데이트·검토 제출 (Play Developer API 우선 + 콘솔 폴백) |
-| `play-api-read` | Play Developer API 읽기전용 조회 — 리뷰·트랙·versionCode·등록정보 |
+| `android-app-builder` | 아이디어 → 앱 → Play Console 검토 제출까지 단일 스킬. 게임은 Phaser4+Vite+Capacitor, 그 외는 네이티브 Kotlin으로 분기 개발. AdMob 수익화·에셋 합성·Play 등록/업데이트/검토제출·읽기전용 조회(리뷰·트랙·versionCode) 전부 포함. 구 `play-store-submit`·`play-api-read`·`phaser-arcade-game`을 흡수(2026-06-14 통합). dev 계정 happylife2080100 + GCP claude-for-android. |
 
 ### 브라우저 자동화 / 스크랩 (인증세션 CDP · Claude in Chrome)
 | 스킬 | 용도 |
@@ -23,7 +21,7 @@
 | `x-cdp-search` | X(트위터) 검색결과 SearchTimeline GraphQL 직접 수집 |
 | `x-account-coach` | X 계정 운영 코칭 |
 | `reddit-cdp-coach` | Reddit 댓글 후보 발굴·초안 코칭 (read-only) |
-| `perplexity-factcheck` | Perplexity로 주장·수치 교차검증 |
+| `careful-factcheck` | 내장 WebSearch로 주장·수치 다각도 교차검증 (반증 탐색·다중 출처, read-only) |
 | `naver-cafe-scrape` | 네이버 카페 게시판 일괄 스크랩 (내부 JSON API) |
 | `naver-blog-brunch-scrape` | 네이버 블로그·브런치 스크랩 |
 
@@ -43,6 +41,7 @@
 |---|---|
 | `tistory-naver-crosspost` | 소스 글 → 티스토리·네이버 블로그 크로스포스트 |
 | `postiz-publish` | Postiz API로 32개 SNS 즉시 발행·스케줄링 |
+| `app-launch-promo` | 신규 앱 멀티채널 홍보 오케스트레이터 — IG·Threads·X·TikTok(Claude in Chrome)+YouTube(youtube-upload API) 게재, inpock 링크 추가, disquiet 프로젝트+로그. 카피는 플랫폼별 생성, 영상은 입력. 즉시 자동발행. |
 | `telegram-bot` | 텔레그램 메시지·알림 발송 |
 
 ### 기타 유틸

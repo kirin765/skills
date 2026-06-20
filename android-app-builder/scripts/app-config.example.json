@@ -3,6 +3,10 @@
   "aab": "/Users/kiwankim/Downloads/example-store-assets/app-release.aab",
   "track": "production",
   "releaseStatus": "completed",
+  "releaseNotes": {
+    "ko-KR": "버그 수정 및 개선",
+    "en-US": "Bug fixes and improvements"
+  },
   "graphicsLanguage": "ko-KR",
   "images": {
     "icon": "/Users/kiwankim/Downloads/example-store-assets/icon-512.png",
@@ -17,7 +21,8 @@
     "ko-KR": {
       "title": "앱 이름",
       "shortDescription": "80자 이내 간단한 설명 (aso-audit 결과)",
-      "fullDescription": "4000자 이내 자세한 설명 (aso-audit 결과)"
+      "fullDescription": "4000자 이내 자세한 설명 (aso-audit 결과)",
+      "video": "https://www.youtube.com/watch?v=XXXXXXXXXXX (선택: 프로모션 동영상 YouTube URL)"
     },
     "en-US": {
       "title": "App Name",

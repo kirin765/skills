@@ -1,6 +1,6 @@
 # 네이티브 Kotlin — 빌드·서명·에뮬레이터 캡처
 
-이 문서는 *다른 스킬에 없는* 네이티브 안드로이드 공백만 담는다. 스토어 등록·스크린샷 합성은 `play-store-submit` 쪽을 쓴다.
+이 문서는 네이티브 안드로이드 빌드 공백만 담는다. 스토어 등록·검토 제출은 `references/play-submit.md`, 스크린샷 합성은 `references/asset-scripts.md`를 쓴다.
 
 ## 전제 도구
 
@@ -62,7 +62,7 @@ keytool -genkeypair -v -keystore upload-keystore.jks \
 ./gradlew bundleRelease
 # 산출물: app/build/outputs/bundle/release/app-release.aab
 ```
-이 AAB 경로를 3단계(play-store-submit) 업로드 핸드오프에 넘긴다.
+이 AAB 경로를 3단계(`references/play-submit.md`) 업로드에 넘긴다.
 
 > Play의 **앱 서명(Play App Signing)**을 쓰면 업로드 키만 있으면 된다(권장). 업로드 키 분실 대비해 사용자에게 안전 보관을 안내한다.
 
@@ -80,4 +80,4 @@ adb exec-out screencap -p > tmp/shots/list.png
 
 해상도가 1080×1920(9:16)이 아니면, 9:16 비율의 에뮬레이터(예: Pixel 7은 1080×2400)를 쓰거나 캡처를 1080×1920으로 크롭/리사이즈한다. Play 요건: PNG/JPEG, 비율 9:16 또는 16:9(2:1 초과 금지), 최소변 ≥320, 최대변 ≤3840.
 
-이렇게 모은 `tmp/shots/*.png`를 `play-store-submit/references/asset-scripts.md`의 "폰 프레임 + 카피" 합성 스크립트에 그대로 입력하면 최종 `framed/` 마케팅 컷이 나온다. 합성 스크립트는 raw PNG를 base64로 박을 뿐 소스가 웹인지 네이티브인지 가리지 않으므로 그대로 재사용된다.
+이렇게 모은 `tmp/shots/*.png`를 `references/asset-scripts.md`의 "폰 프레임 + 카피" 합성 스크립트에 그대로 입력하면 최종 `framed/` 마케팅 컷이 나온다. 합성 스크립트는 raw PNG를 base64로 박을 뿐 소스가 웹인지 네이티브인지 가리지 않으므로 그대로 재사용된다.

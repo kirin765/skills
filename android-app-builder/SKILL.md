@@ -1,148 +1,137 @@
 ---
 name: android-app-builder
-description: 새 안드로이드 앱을 아이디어부터 Google Play Console 검토 제출까지 끝내는 오케스트레이터. 사용자가 "안드로이드 앱 만들자", "새 앱 개발 시작", "앱 하나 만들어줘", "이 아이디어로 안드로이드 앱", "코틀린 앱 만들어서 플레이스토어까지", "Play Store까지 출시하는 앱 개발" 같이 *새 안드로이드 앱 개발을 시작*하려 할 때 반드시 발동. 무슨 앱인지·MVP·참고할 점을 구조화로 받아 (1) 네이티브 Kotlin 앱을 goal 기반 루프로 구현하고, (2) 에뮬레이터 스크린샷을 "카피문구 + 스마트폰 프레임" 마케팅 컷으로 합성한 뒤, (3) `play-store-submit` 스킬로 Play Console 등록 → 프로덕션 검토 제출까지 인계한다. 개발 실행은 `/goal` 스킬이 있으면 그걸 호출하고, 없으면 goal 기반 루프를 자체 수행. 완료 기준은 Play Console 검토 제출. 단순 스토어 등록만 원하면 `play-store-submit`, 아이디어 검증만 원하면 `stress-test-idea`를 직접 쓴다. iOS·스위프트·웹앱·크로스플랫폼, 기존 앱 버그 수정·새 버전 업로드는 이 스킬이 아니다.
+description: 안드로이드 앱을 아이디어부터 Google Play Console 검토 제출까지 끝내는 단일 스킬. 새 앱 개발은 컨텍스트로 분기 — **게임**(탭/플래피/아케이드/러너/닷지)은 Phaser 4 + Vite + Capacitor로, **그 외 유틸/생산성 앱**은 네이티브 Kotlin으로 만든다. AdMob 수익화·스토어 에셋(폰 프레임+카피 스크린샷)·Play Console 등록·검토 제출까지 한 스킬에서 처리하고, 기존 앱 업데이트(새 버전 AAB·등록정보·그래픽 수정)와 읽기 전용 조회(리뷰·평점·트랙·versionCode·등록정보 현황)도 포함한다. 사용자가 "안드로이드 앱 만들자", "탭 게임/플래피 같은 거 만들어줘", "코틀린 앱 만들어서 플레이스토어까지", "Play Store에 올려줘", "새 버전 AAB 업로드", "스토어 등록정보 수정", "AdMob 광고 붙여줘", "내 앱 리뷰/평점/트랙 상태 봐줘" 같이 *안드로이드 앱 개발·게임 개발·Play Store 등록/업데이트/조회·앱 수익화* 중 무엇이든 말할 때 발동. 모든 dev 작업은 happylife2080100@gmail.com 계정 + GCP 프로젝트 claude-for-android로 통일. 단순 아이디어 검증만 원하면 stress-test-idea, 등록정보 카피 최적화만 원하면 aso-audit를 직접 쓴다. iOS·Swift·순수 웹앱·Unity·Godot는 이 스킬이 아니다.
 ---
 
-# Android App Builder — 아이디어 → Play Console 검토 제출
+# Android App Builder — 아이디어 → Play Console 검토 제출 (단일 스킬)
 
-이 스킬은 직접 모든 걸 하는 게 아니라 **오케스트레이터**다. 이미 잘 동작하는 다른 스킬(`play-store-submit`, `aso-audit`, `stress-test-idea`, 그리고 있으면 `/goal`)을 올바른 순서로 엮고, *네이티브 안드로이드에만 있는 공백*(Gradle 서명 AAB 빌드, 에뮬레이터 스크린샷 캡처)만 직접 채운다. 중복 구현하지 말 것 — 인계할 수 있으면 인계한다.
+게임이든 유틸이든, 신규든 업데이트든, 안드로이드 앱 일을 한 스킬에서 끝낸다. 구현 디테일은 `references/`에 두고 필요할 때만 읽는다(progressive disclosure). 글로벌 CLAUDE.md의 goal-driven 원칙을 따른다 — 각 단계는 다음으로 넘어가기 전 **검증 가능한 결과물**을 확인한다.
 
-## 전체 흐름 (한눈에)
+## 라우팅 — 제일 먼저 컨텍스트로 분기
 
-```
-0. 인텍트(Intake)   → 무슨 앱·MVP·참고점 받아 한 장짜리 spec 확정
-1. 개발(Develop)    → 네이티브 Kotlin, goal 기반 루프로 MVP 구현 → 서명된 release AAB
-2. 에셋(Assets)     → 에뮬레이터 raw 캡처 → "카피문구+폰 프레임" 마케팅 컷 합성
-3. 제출(Submit)     → play-store-submit 인계 → Play Console 등록 → 검토 제출(완료)
-```
+| 사용자 의도 | 경로 |
+|---|---|
+| 리뷰·평점·트랙·versionCode·등록정보 **현황 조회** | `references/play-read.md` + `scripts/play_read.py`. 빌드 흐름 없이 바로 답. |
+| **기존 앱 업데이트** (새 버전 AAB·등록정보·그래픽) | `references/play-submit.md`의 "기존 앱 수정" — 100% API, Chrome 안 씀. |
+| **신규 앱 전체 빌드** | 아래 0→3 단계 흐름. |
+| **AdMob만 붙이기** | §1.5 직행. |
 
-각 단계는 다음 단계로 넘어가기 전에 **검증 가능한 결과물**이 있어야 한다. "됐다"고 말하기 전에 그 결과물을 실제로 확인한다(빌드 성공, 에뮬레이터 실행, AAB 생성, 스크린샷 파일 존재 등). 글로벌 CLAUDE.md의 goal-driven execution 원칙을 그대로 따른다.
+작업 시작 시 TodoWrite로 해당 경로의 단계를 등록하고, 완료 즉시 체크한다.
 
-작업 시작 시 TodoWrite로 위 4단계를 등록하고, 각 단계 완료 즉시 체크한다.
+## 공용 사실 (단일 출처 — 모든 경로가 여기서 읽는다)
+
+- **dev 계정**: `happylife2080100@gmail.com` (개발자명 happylife2080, devId `8303647010319569479`) — Play Console·AdMob·Cloud Console 전부 동일.
+- **GCP 프로젝트**: `claude-for-android` (authuser=1). API 인증 셋업은 `references/google-cloud-setup.md`(1회, 앱 무관).
+- **서비스 계정 키**: `~/.config/play-publisher/sa.json` · SA `play-publisher@claude-for-android.iam.gserviceaccount.com`
+- **실행 venv**: `~/.config/play-publisher/venv/bin/python`
+- **신규 repo**: 앱마다 `kirin765/<app-name>` 새로 생성(아래 1.0). 키스토어·`sa.json`·`local.properties`는 커밋 금지.
 
 ---
 
-## 0단계: 인텍트 — 한 장짜리 spec 확정
+## 0단계: 인텍트 — 한 장짜리 spec
 
-코드를 짜기 전에 아래를 사용자에게서 받아 확정한다. 이미 대화에 있으면 다시 묻지 말고 추출해 확인만 받는다. 모르는 칸은 추측하지 말고 묻는다.
+코드 전에 아래를 확정. 대화에 이미 있으면 추출해 확인만, 모르면 묻는다(추측 금지).
 
 | 항목 | 설명 |
 |------|------|
-| 앱 한 줄 정의 | "누구를 위한 무슨 앱" 한 문장 |
-| MVP 핵심 기능 | **최소** 기능 1~3개. 그 이상은 적지 말 것(범위 팽창 방지) |
-| 타겟 사용자 | 한국/글로벌, 연령대 |
-| 참고 앱/레퍼런스 | 비슷한 앱, 참고할 UX·화면 |
-| 제약 | 오프라인 전용? 인터넷 권한 필요? 로그인 있음? 데이터 수집 여부 |
-| 패키지명 | `com.<dev>.<app>` (Play 등록·서명에 고정으로 쓰임) |
+| 앱 한 줄 정의 | "누구를 위한 무슨 앱" |
+| 앱 유형 | **게임 / 유틸·생산성·기타** (개발 경로를 가른다) |
+| MVP 핵심 기능 | 최소 1~3개. 그 이상 금지(범위 팽창 방지) |
+| 타겟 | 한국/글로벌, 연령대 |
+| 제약·데이터 거동 | 오프라인 전용? 인터넷 권한? 로그인? **데이터 수집/전송? 광고(AdMob)?** (개인정보 티어를 가른다) |
+| 패키지명 | `com.<dev>.<app>` |
 | 앱 이름 | 한국어(기본) + 영어 |
 
-**아이디어가 아직 검증 안 됐고 사용자가 "이거 될까"류 불확실을 보이면**, 코드 들어가기 전에 `stress-test-idea` 스킬을 먼저 권한다(1인 개발 경제성·경쟁·왜 안 살까를 30분 만에 거른다). 사용자가 "그냥 만들어"라고 하면 건너뛴다.
-
-산출물: 위 표를 채운 한 장짜리 spec을 사용자에게 보여주고 "이대로 개발 시작할까요?" 확인. 확인 전 1단계로 가지 않는다.
+아이디어가 미검증이고 사용자가 "이거 될까"류 불확실을 보이면 코드 전에 `stress-test-idea`를 권한다(사용자가 "그냥 만들어"면 스킵). spec을 보여주고 "이대로 시작할까요?" 확인 후 1단계.
 
 ---
 
-## 1단계: 개발 — 네이티브 Kotlin, goal 기반 루프
+## 1단계: 개발 — 컨텍스트 분기
 
-기본 스택은 **네이티브 Kotlin (Android Studio / Gradle)**. 프로젝트 스캐폴드·Compose UI·서명 AAB 빌드·에뮬레이터 실행의 구체 레시피는 `references/native-kotlin.md` 참고(필요할 때 읽는다).
-
-### 1.0 저장소 — 신규 앱마다 GitHub repo 신규 생성
-
-개발 시작 전에 **앱마다 전용 GitHub repo를 새로 만든다**: `kirin765/<앱이름>`. 기존 repo에 섞지 않는다.
-
+### 1.0 저장소 (앱마다 신규)
 ```bash
 cd <프로젝트경로>
-git init && git add -A && git commit -m "init: <앱이름> scaffold"
-gh repo create kirin765/<앱이름> --private --source=. --remote=origin --push
+git init && git add -A && git commit -m "init: <app> scaffold"
+gh repo create kirin765/<app-name> --private --source=. --remote=origin --push
 ```
 
-- repo명은 spec의 앱 영문명(케밥/소문자, 예: `cat-feeding-log`). 기본 **private**.
-- 키스토어·서명 비밀번호·`local.properties`는 커밋 금지(`.gitignore`). 키스토어는 사용자 자산.
-- 이후 모든 커밋은 이 repo로 push. 데이터 수집 앱이라 앱별 privacy 페이지가 필요하면(2단계) 이 repo의 `public/`에 두고 Vercel을 이 repo에 연결해 배포한다 — 무수집 앱은 공용 URL을 쓰므로 배포 불필요.
+### 분기
+- **게임** (탭/플래피/아케이드/러너/닷지) → **Phaser 4 + Vite + Capacitor**. `references/develop-phaser-game.md`를 따르고 `assets/phaser/*`를 복사·적응. 최종 빌드 = Capacitor → 서명 release AAB.
+- **그 외 유틸/생산성** → **네이티브 Kotlin** (Compose). `references/develop-native-kotlin.md`를 따른다. 최종 빌드 = `./gradlew bundleRelease`.
 
-### 개발 엔진: `/goal` 우선, 없으면 자체 루프
+둘 다: `/goal` 스킬이 있으면 호출해 MVP를 구현, 없으면 이 스킬이 직접 goal 루프(검증 가능한 목표로 번역 → 테스트 → 통과까지). 로직은 JVM 단위 테스트로, 화면은 핵심만.
 
-이 단계의 "어떻게 만들지"는 goal 기반으로 돈다. 엔진 선택:
-
-1. **런타임에 `/goal` 스킬이 사용 가능하면 그걸 호출**해 MVP 기능을 구현한다(사용자가 이 스킬을 그렇게 설계했다). spec의 MVP 기능 목록을 goal로 넘긴다.
-2. **`/goal`이 없으면**(현재 이 머신엔 설치돼 있지 않음) — 이 스킬이 직접 goal 기반 루프를 돈다. 막연한 작업을 검증 가능한 목표로 번역하고 통과할 때까지 반복:
-   - "기능 X 추가" → 잘못된 입력에 대한 테스트를 먼저 쓰고 통과시킨다
-   - 로직(ViewModel·repository·유스케이스)은 JVM **단위 테스트**로 검증(빠르고 결정적). 화면 통합 테스트(Espresso)는 무겁다 — MVP에선 핵심 한두 개만.
-   - 각 기능 완료 = `./gradlew test` 통과 + 에뮬레이터에서 실제 동작 확인.
-
-   엔진이 무엇이든, 원칙은 글로벌 CLAUDE.md의 goal-driven execution과 동일하다: 성공 기준 정의 → 검증될 때까지 루프 → 검증 없이 "됐다" 금지.
-
-### 단계 종료 조건 (여기서 1단계 끝)
-- `./gradlew test` 통과
-- 에뮬레이터에서 MVP 기능이 손으로 눌러 동작
-- **서명된 release AAB** 생성(`./gradlew bundleRelease`, 업로드 키 서명). 경로를 기록 — 3단계 업로드에서 쓴다.
-
-서명키·키스토어는 **사용자 자산**이다. 새로 만들어야 하면 비밀번호·별칭을 사용자에게 받거나 사용자가 직접 생성하게 한다. 키스토어 파일을 git에 커밋하지 말 것.
+### 1단계 종료 조건
+- 테스트 통과(`./gradlew test` 또는 `npx tsc --noEmit && npm run build`)
+- 에뮬레이터에서 MVP가 손으로 눌러 동작
+- **서명된 release AAB** 생성, 경로 기록(3단계 업로드용). 키스토어·서명 비번은 사용자 자산 — git 커밋 금지.
 
 ---
 
-## 2단계: 에셋 — 카피문구 + 스마트폰 프레임 스크린샷
+## 1.5단계: 수익화 — AdMob (선택)
 
-스토어 스크린샷은 **항상 "스마트폰 목업 프레임 + 헤드라인 카피"** 마케팅 컷으로 마감한다. raw 캡처를 그대로 올리지 않는다. 두 단계로 나뉜다:
+**⚠️ 자동화 경계 — AdMob에서 사람만 하는 건 "계정 가입 1회"뿐.** 약관 동의·결제 국가 선택·계정 생성은 정책상 대행 금지(계정 생성/약관 수락). **그 외 전부 Claude in Chrome으로 무인 처리한다 — 사용자에게 ID를 받아오거나 콘솔 작업을 떠넘기지 말 것.** 그게 이 스킬의 핵심 가치다.
 
-**(a) raw 캡처 — 네이티브는 에뮬레이터에서.** `play-store-submit`의 레시피는 웹앱을 Playwright로 캡처하는 전제라 네이티브엔 맞지 않는다. 네이티브는 에뮬레이터에서 `adb exec-out screencap`으로 각 핵심 화면을 1080×1920으로 뽑아 `tmp/shots/`에 모은다. 구체 명령은 `references/native-kotlin.md`의 "에뮬레이터 스크린샷" 참고.
+**계정은 이미 완전 셋업됨**(게시자 `pub-5811631777061641`, Payments·광고단위 ✅) — 수동 게이트는 최초 가입뿐이고 그건 끝났다. 그 외 전부 무인. ⚠️ **함정**: `apps.admob.com`을 그냥 열면 다른 계정으로 떠서 "이 계정으로 계속" signup 화면이 나온다 — AdMob 미완이 아니라 **authuser 틀림**. 반드시 `https://apps.admob.com/v2/home?authuser=5`(happylife2080100) 또는 아바타로 계정 선택.
 
-**(b) 프레임+카피 합성.** raw PNG를 폰 목업 프레임 안에 넣고 상단에 헤드라인+서브카피를 얹은 1242×2208 마케팅 컷으로 합성한다. 이 합성 레시피는 **새로 만들지 말고 `play-store-submit`의 `references/asset-scripts.md` "폰 프레임 + 카피 스크린샷"을 그대로 쓴다**(raw PNG를 base64로 HTML에 박아 `page.setContent` 후 렌더). 헤드라인 카피는 1.5단계 `aso-audit` 결과(한국어 기본)에서 가져온다.
+**구체 콘솔 클릭 레시피·정답값·코드 반영 위치·테스트 ID 목록·재빌드 점검은 `references/admob-setup.md`를 따른다(펀트 금지).** 요지:
+1. **앱 생성**: "앱 추가" → 플랫폼 Android → (Play 등록된 앱이면 검색해 연결, 아직이면 "아니요") → 앱 이름 입력 → 생성.
+2. **광고단위 생성**: 앱 → 광고 단위 → 필요한 유형(배너/전면/보상형)을 각각 생성.
+3. **ID는 콘솔에서 직접 읽는다(사용자에게 받지 말 것).** `read_page`/`get_page_text`로 추출: 앱 ID `ca-app-pub-…~…`(물결 `~`), 광고단위 ID `ca-app-pub-…/…`(슬래시 `/`).
+4. **코드 반영**: 읽은 실 ID를 광고 코드에 박고(예: `src/ads.ts`의 ID 상수, 또는 네이티브 `AndroidManifest.xml`/`strings.xml`) **테스트 ID·TESTING 플래그 해제** → release AAB 재빌드.
+5. **개인정보/데이터 보안:** AdMob = 데이터 수집 → 티어 A→**B(광고)** 승격(§2 표). 정책 URL은 공용 광고 페이지(예: `https://apps-privacy-one.vercel.app/ads.html`). Play 데이터 보안에 「기기 또는 기타 ID」 광고 목적 수집·공유 + "광고 포함" 선언.
+6. (선택) `admob_api.py` OAuth 1회 인증 → 출시 후 수익/광고단위 조회.
 
-**제작 수단 — 둘 다 지원:**
-- **기본: HTML/CSS → Playwright 캡처.** 무료·결정적·반복 가능. 위 asset-scripts.md 템플릿 사용. 거의 항상 이걸로 충분.
-- **고품질 필요 시: Canva MCP.** 연결돼 있으면 Canva로 디자인 생성·export. 비주얼 퀄리티가 더 필요하거나 사용자가 명시할 때만.
-
-같은 폴더(`~/Downloads/<app>-store-assets/`)에 아이콘 512px·피처그래픽 1024×500·스크린샷·개인정보처리방침까지 다 모아 둔다 — 3단계의 업로드 핸드오프를 **한 번**으로 묶기 위함. 이 에셋 목록·요건도 `play-store-submit` 1단계에 정의돼 있으니 그걸 따른다.
-
-**개인정보처리방침 — 데이터 수집 여부로 분기(0단계 spec 기준):**
-- **완전 오프라인·무수집 앱**(네트워크 전송·광고·분석·로그인·계정·인앱결제 데이터 없음, 기기 내 저장만) → **이미 배포된 공용 정책 URL을 그대로 재사용**한다. 새로 만들지 말 것:
-
-  **`https://apps-privacy-one.vercel.app`**
-
-  이 페이지는 개발자 happylife2080의 모든 무수집 오프라인 앱에 공통 적용되는 ko/en 정책(수집 없음·기기 내 저장·광고/분석 없음)이라 앱마다 작성·배포가 불필요하다. 3단계 등록정보의 개인정보처리방침 칸에 이 URL을 그대로 입력한다. (소스: `~/apps-privacy/index.html`, Vercel 프로젝트 `apps-privacy`. 문구·이메일 수정이 필요하면 그 디렉터리에서 고쳐 `vercel deploy --prod`로 재배포하면 모든 앱에 동시 반영된다.)
-- **데이터를 하나라도 수집/전송하는 앱** → 공용 URL 재사용 금지. 수집·공유 항목을 실제대로 기술한 정책을 앱별로 새로 작성·배포(`public/privacy.html` 등)하고 HTTP 200 URL을 확정한다. 그러지 않으면 Play 데이터보안 선언과 불일치로 반려된다.
+연동 코드 위치: **Capacitor 게임** → AdMob Capacitor 플러그인(`src/ads.ts` 류, 배너=메뉴·게임오버 하단·플레이 중 숨김, 전면=게임오버 N판마다); **네이티브 Kotlin** → Google Mobile Ads SDK.
 
 ---
 
-## 3단계: 제출 — `play-store-submit` 인계
+## 2단계: 에셋 — 폰 프레임 + 카피 스크린샷
 
-여기서부터는 **`play-store-submit` 스킬을 호출**해 진행한다. 그 스킬이 Play Console 등록의 결정적 순서·정답표·ref우선 클릭·파일 업로드 핸드오프·검토 제출을 모두 갖고 있다. 이 오케스트레이터는 다음만 넘겨준다:
+스토어 컷은 항상 **"스마트폰 목업 프레임 + 헤드라인 카피"** 마케팅 컷. raw 캡처 그대로 올리지 않는다.
+1. **raw 캡처**: 네이티브/게임 모두 에뮬레이터에서 `adb exec-out screencap`으로 1080×1920(`references/develop-native-kotlin.md`의 "에뮬레이터 스크린샷").
+2. **프레임+카피 합성**: `references/asset-scripts.md`의 "폰 프레임 + 카피 스크린샷"(raw를 HTML에 박아 `page.setContent`→1242×2208 렌더). 헤드라인은 §2.5 `aso-audit` 결과(한국어 기본).
 
-- 1단계 산출 **서명 AAB 경로**
-- 2단계 산출 **에셋 폴더**(아이콘·피처·프레임 스크린샷·개인정보처리방침 URL)
-- spec의 **패키지명·앱이름(ko/en)·앱 유형(앱/게임)·데이터 수집 여부**
-- **개발자 계정**: `happylife2080100@gmail.com` (개발자명 happylife2080, devId `8303647010319569479`). 이 계정으로 Play Console에 로그인된 Chrome 세션에서 등록한다. 미로그인이면 추측·새 계정 생성 금지, 사용자에게 이 계정 로그인을 요청.
-- **언어 정책(항상)**: 기본 언어는 **한국어 ko-KR**, 보조로 **en-US를 항상 추가**한다. 등록정보(앱이름·간단한 설명·자세한 설명)는 두 언어 모두 작성하고, 그래픽은 기본 언어(ko-KR)에만 올리면 다른 언어로 자동 공유된다.
-- **등록정보 텍스트는 직접 짓지 말 것 — `aso-audit` 스킬로 생성한다.** 앱이름·간단한 설명(≤80)·자세한 설명(≤4000)·키워드는 등록 전에 `/aso-audit`을 호출해 ko/en 최적화 카피를 받아 그대로 입력한다. 손으로 작문한 텍스트를 그냥 넣지 않는다(스크린샷 헤드라인 카피도 같은 결과에서 가져온다).
+같은 폴더(`~/Downloads/<app>-store-assets/`)에 아이콘 512·피처 1024×500·스크린샷을 모아 3단계 업로드를 한 번에 묶는다.
 
-`play-store-submit`가 처리하는 것(여기서 다시 구현하지 말 것): 앱 생성, AAB 업로드(사용자 수동 핸드오프 — Chrome 경유 바이너리·이미지 자동 업로드는 전부 차단됨, 절대 재시도 금지), 앱 콘텐츠 선언 10개 정답표, ASO(`aso-audit` 호출), 스토어 등록정보(한/영), 국가/지역, 스토어 설정, 그리고 **검토 제출**.
+### 개인정보처리방침 URL — 데이터 거동 티어로 분기 (앱 유형 무관)
+정책 내용은 유틸/게임이 아니라 **무엇을 수집/공유하느냐**가 결정한다. 대부분 공통 2개로 수렴:
 
-### 업로드 자동화 — Chrome 말고 Play Developer API
+| 티어 | 거동 | URL |
+|---|---|---|
+| **A. 무수집** | 전송·광고·분석·로그인·결제 없음, 기기 내 저장만 | `https://apps-privacy-one.vercel.app` (기존 공용, 재사용) |
+| **B. 광고(AdMob)만** | AdMob 외 수집 0 (광고ID·기기정보, 광고/측정) | **공용 광고 URL** — `~/apps-privacy`에 광고 티어 페이지 추가 후 1회 배포, 모든 광고앱 공유 |
+| **C. 그 외 수집** | 분석·계정·클라우드·IAP·서버 전송 | 앱별 신규 Vercel URL(`public/privacy.html` 배포) |
 
-AAB·아이콘·피처·스크린샷의 **Chrome(Claude in Chrome) 업로드는 안전계층에 영구 차단**돼 매번 사용자 수동 클릭이 됐다. 우회는 **브라우저를 안 쓰는 Play Developer Publishing API**(서비스 계정 REST). 레시피·셋업은 `references/play-publishing-api.md` 참고.
-
-- **신규 앱의 단 하나 수동 단계**: 앱 최초 생성 + **맨 처음 AAB 1개**(패키지 존재 + Play App Signing 설정이 이때만 콘솔에서 잡힘). 이 부분만 `play-store-submit`의 수동 핸드오프를 쓴다.
-- **그 외 전부 API로 무인 처리**: 아이콘·피처·스크린샷(`edits.images.upload`), 등록정보 ko/en(`edits.listings.update`), 트랙 배정, 그리고 이후 모든 새 버전 AAB. 앱 *업데이트*는 100% 무인.
-- API 셋업(Play Developer API 활성화 + GCP 서비스 계정 + Play Console 권한 부여)은 **1회·앱 무관**. 미설정이면 사용자에게 셋업을 안내하거나, 그때까진 전부 `play-store-submit` 수동 핸드오프로 폴백.
-- `edits.commit`(검토 제출)은 비가역 — 0단계에서 "출시까지" 명시 때만.
-
-### 완료 기준 (이 스킬의 끝)
-Play Console에서 상태가 **"검토 중인 변경사항"**으로 바뀌면 완료다. 검토 제출은 **공개 게시로 이어지는 비가역 동작**이므로, 0단계에서 사용자가 **"출시까지" / "검토 제출까지"를 명시**했을 때만 최종 전송한다. 아니면 검토 제출 직전(모든 항목 녹색·"출시 준비됨")에서 멈추고 사용자 확인을 받는다.
-
-완료 후 글로벌 CLAUDE.md 규칙대로 Telegram으로 1회 알림(무엇을 출시했는지·다음 사용자 액션).
+**규칙: 선택 URL의 명시 내용 = 그 앱의 Play 데이터 보안 선언과 일치**(불일치 시 반려). AdMob을 붙이면 자동으로 A→B. 분석/계정 등이 끼면 C(앱별). C는 이 repo의 `public/`에 두고 Vercel 연결 배포.
 
 ---
 
-## 인계 우선 원칙 (요약)
+## 2.5단계: ASO — `aso-audit` 호출
+등록정보 텍스트(앱이름·간단한 설명 ≤80·자세한 설명 ≤4000·키워드)와 스크린샷 헤드라인은 직접 작문하지 말고 **`/aso-audit`을 호출**해 ko/en 최적화 카피를 받아 그대로 쓴다. **언어 정책(항상): 기본 ko-KR + en-US 항상 추가.**
 
-| 필요 | 누가 | 비고 |
-|------|------|------|
-| 아이디어 검증 | `stress-test-idea` | 불확실할 때만, 0단계 전 |
-| 개발 goal 루프 | `/goal` 있으면 호출, 없으면 자체 | 1단계 |
-| 네이티브 빌드·서명·에뮬 캡처 | 이 스킬(`references/native-kotlin.md`) | 1·2단계 — 다른 데 없는 공백 |
-| 스크린샷 프레임+카피 합성 | `play-store-submit/references/asset-scripts.md` | 2단계 — 재사용 |
-| ASO 카피 | `aso-audit` | play-store-submit 1.5단계가 호출 |
-| Console 등록·검토 제출 | `play-store-submit` | 3단계 전부 |
+---
 
-스스로 무언가를 새로 구현하려는 충동이 들면 먼저 위 표에서 이미 있는지 확인한다.
+## 3단계: 제출 — `references/play-submit.md`
+업로드·이미지·등록정보·트랙·출시노트·검토제출(`edits.commit`)은 전부 **Play API(`play_upload.py`)** 무인. **Chrome 콘솔은 API에 엔드포인트가 없는 신규-앱 3가지에만** — ① 앱 최초 생성 ② 콘텐츠 선언 10개 ③ 카테고리.
+
+**최초 신규 제출 처리** (흔한 오해 — "첫 제출은 API로 안 됨"): 앱 생성·선언·카테고리는 원래부터 콘솔이고, **첫 AAB는 `releaseStatus:"draft"`로 API 업로드가 됨**(2026-06 실증). 만약 Google이 첫 바이너리를 거부하면 Chrome은 바이너리 업로드가 영구 차단이므로 **사용자가 콘솔에서 첫 AAB 1회만 수동 업로드** → 이후 전부 API. 정답표·금지목록·deep-link 값은 `references/play-submit.md`.
+
+### 완료 기준
+Play Console 상태가 **"검토 중인 변경사항"**이 되면 완료. 검토 제출(`--commit`)은 공개 게시로 이어지는 비가역 동작 — 0단계에서 사용자가 **"출시까지" 명시**했을 때만. 아니면 dry run "validate OK"에서 멈추고 확인받는다. 완료 후 Telegram 1회 알림(글로벌 CLAUDE.md).
+
+---
+
+## 인계 우선 원칙
+
+| 필요 | 누가 |
+|------|------|
+| 아이디어 검증(불확실할 때만, 0단계 전) | `stress-test-idea` |
+| 개발 goal 루프 | `/goal` 있으면 호출, 없으면 자체 |
+| 게임 Phaser 구현 / 네이티브 Kotlin | 이 스킬(`references/develop-*.md` + `assets/phaser/`) |
+| 스크린샷 프레임+카피 합성 | 이 스킬(`references/asset-scripts.md`) |
+| ASO 카피 | `aso-audit` (2.5단계) |
+| Cloud/Play/AdMob API 셋업 | 이 스킬(`references/google-cloud-setup.md`, 1회) |
+| Play 등록·업로드·검토제출·조회 | 이 스킬(`references/play-submit.md`·`play-read.md` + `scripts/`) |
+
+새로 구현하려는 충동이 들면 먼저 위에서 이미 있는지 확인한다.

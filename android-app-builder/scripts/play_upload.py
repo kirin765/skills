@@ -62,25 +62,32 @@ def run(cfg, commit):
                     media_body=MediaFileUpload(f, mimetype="image/png")).execute()
             print(f"  images[{itype}] ← {len(files)} file(s) @ {lang}")
 
-        # 3) Listings per language
+        # 3) Listings per language (video = YouTube 프로모션 동영상 URL, 선택)
         for lang, l in (cfg.get("listings") or {}).items():
             edits.listings().update(packageName=pkg, editId=edit_id, language=lang, body={
                 "language": lang,
                 "title": l["title"],
                 "shortDescription": l.get("shortDescription", ""),
                 "fullDescription": l.get("fullDescription", ""),
+                "video": l.get("video", ""),
             }).execute()
-            print(f"  listing[{lang}] updated")
+            print(f"  listing[{lang}] updated"
+                  + (f" (+video {l['video']})" if l.get("video") else ""))
 
         # 4) Track assignment (only if we shipped an AAB)
         if version_codes:
             track = cfg.get("track", "production")
+            release = {"status": cfg.get("releaseStatus", "completed"),
+                       "versionCodes": [str(v) for v in version_codes]}
+            if cfg.get("releaseNotes"):
+                release["releaseNotes"] = [{"language": lang, "text": text}
+                                           for lang, text in cfg["releaseNotes"].items()]
             edits.tracks().update(packageName=pkg, editId=edit_id, track=track, body={
                 "track": track,
-                "releases": [{"status": cfg.get("releaseStatus", "completed"),
-                              "versionCodes": [str(v) for v in version_codes]}],
+                "releases": [release],
             }).execute()
-            print(f"  track[{track}] ← versionCodes {version_codes}")
+            print(f"  track[{track}] ← versionCodes {version_codes}"
+                  + (" (+releaseNotes)" if cfg.get("releaseNotes") else ""))
 
         edits.validate(packageName=pkg, editId=edit_id).execute()
         print("  validate OK")
@@ -113,7 +120,7 @@ def main():
         if e.resp.status in (401, 403):
             print("→ The service account likely lacks Play Console permission for this app, "
                   "or the app/package doesn't exist yet. Grant 'release' access to "
-                  "claude-google-play@claude-android-upload.iam.gserviceaccount.com in "
+                  "play-publisher@claude-for-android.iam.gserviceaccount.com in "
                   "Play Console → Users and permissions, and ensure the app + first AAB exist.",
                   file=sys.stderr)
         sys.exit(1)

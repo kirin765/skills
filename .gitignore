@@ -4,6 +4,17 @@
 # generated app/run workspaces (regenerable, not skill source)
 android-app-builder-workspace/
 naver-seo-workspace/
+appfigures-workspace/
+
+# python bytecode caches
+__pycache__/
+*.pyc
+
+# external-plugin skill symlinks (managed by their plugins, not skill source)
+/baseline-ui
+/fixing-accessibility
+/fixing-metadata
+/fixing-motion-performance
 
 # scraped raw corpora + derived signals (regenerable, large)
 dcinside-sales-safari/scripts/raw/
