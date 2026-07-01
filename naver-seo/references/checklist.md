@@ -39,18 +39,6 @@ changing anything, and report the audit to the user first.
 - [ ] No keyword stuffing, hidden text, cloaking, or doorway pages
 - [ ] Original content (not copied from elsewhere)
 
-## Content integrity / anti-slop (cross-posting & AI-drafted content)
-Run this block whenever content is cross-posted or AI-drafted in batches — it targets Naver's
-유사문서 / 저품질 / C-Rank / D.I.A.+ downranking, not just eligibility.
-- [ ] **Canonical origin chosen** — one surface owns each article; others differ or attribute
-- [ ] **Crossposts are substantially different** (unique intro/example/screenshots) — not a spun copy
-- [ ] Syndicated copies carry `rel=canonical` or an explicit "originally published at" pointer
-- [ ] **No templated set** — posts don't all share one skeleton + identical CTA wording
-- [ ] **Pacing humanized** — no day-0 burst; publishing spaced over time; account not brand-new+dumping
-- [ ] **No single coordination fingerprint** — same tracked/UTM link not pasted identically everywhere
-- [ ] **First-hand proof present** — original data, real screenshots, named author (E-E-A-T / D.I.A.+)
-- [ ] AI-generated hero images checked for provenance (C2PA/SynthID) if load-bearing
-
 ## Submission (user, in Search Advisor — see submission.md)
 - [ ] Site registered + ownership verified in 웹마스터도구
 - [ ] Sitemap submitted

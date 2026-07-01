@@ -7,9 +7,6 @@ description: >-
   웹마스터도구, Yeti(네이버 검색로봇), naver-site-verification, RSS 피드 제출, 네이버 사이트맵,
   네이버 파비콘, or wants their site/store/blog to rank or appear in Naver search —
   even if they only say "SEO" but the audience is Korean / the site targets Naver.
-  Also covers content-integrity / anti-slop: avoiding Naver's 유사문서(similar-document)
-  filter, 저품질 문서, and AI-mass-production downranking when cross-posting or publishing
-  AI-drafted content (원본성, C-Rank, D.I.A.+, 크로스포스트 중복).
   Naver differs from Google in important ways (Yeti robot, RSS feed with full body,
   Open Graph used directly for search, favicon must be absolute URL, schema.org
   Product is NOT a Naver-supported rich type). Apply this skill before hand-rolling
@@ -47,49 +44,6 @@ These are the points people miss when they apply generic SEO to a Korean-market 
 7. **`nosourceinfo` robots directive** opts a page out of Naver's AI-generated source
    description. Most sites should NOT set it; know it exists.
 
-## Content integrity — staying out of Naver's 유사문서 / 저품질 / AI-slop filters
-
-Getting a page *eligible* (above) is only half the job. Naver actively **downranks and filters**
-low-originality and mass-produced content — and platform detectors now **cluster accounts and
-demote the whole cluster**, not just one post. This bites hardest on the exact moves people make
-with AI: cross-posting the same article to several surfaces and shipping a batch of same-template
-posts. The failure mode is not "used AI" — it's the triad **duplication × pacing × coordination.**
-
-Naver's concrete enforcement surfaces (know these by name):
-
-- **유사문서(similar-document) filter + 원본성.** Naver detects near-duplicate bodies **semantically**,
-  not just by exact hash — rewording does not hide it. Publishing a byte-identical (or lightly
-  spun) body to two indexable surfaces (own `.com/blog` **and** Naver 블로그 / Tistory) does **not**
-  double reach: the copies compete and the non-canonical one is filtered. This is the single most
-  common self-inflicted Naver penalty.
-- **C-Rank** rewards steady, single-topic authorship *over time*. A brand-new blog dumping many
-  posts on day 0 is both a low-C-Rank state **and** an automated-pacing flag. Consistent cadence
-  is simultaneously the anti-flag and the ranking positive.
-- **D.I.A.+ (Deep Intent Analysis)** rewards **first-hand, experience-based original documents**
-  (real data, screenshots, worked examples, named author) and demotes thin/templated filler —
-  the same line between "creative use" and "slop" the detectors draw.
-
-**Guardrails — apply whenever the task involves cross-posting or publishing AI-drafted content:**
-
-1. **Pick a canonical origin; differentiate every copy.** One surface owns the article (usually the
-   `.com/blog`). Any Naver/Tistory crosspost must be **substantially different** — unique intro,
-   different worked example, own screenshots — or carry explicit "originally published at" +
-   `rel=canonical`. Syndication is safe only when the copy is genuinely different or attributed.
-2. **Break the template across a set.** N posts sharing one skeleton + identical CTA read as
-   mass-produced. Vary structure, headings, salient terms, and CTA wording per piece. **One strong
-   original per query beats N thin variants.**
-3. **Humanize pacing; age the account.** No day-0 burst. Space publishing over days/weeks (what
-   C-Rank rewards anyway); avoid publish-seconds-after-signup patterns.
-4. **Don't leave one coordination fingerprint.** The same tracked/UTM link pasted across 블로그 +
-   지식iN + 카페 from one automated session is a coordination signal. Keep links value-first and
-   organic, vary anchor context, don't paste the identical URL everywhere.
-5. **Lead with first-hand proof.** Original data, real screenshots, named author (E-E-A-T / D.I.A.+)
-   is exactly what keeps content on the side detectors and Naver spare *on purpose*.
-6. **Provenance is emerging.** AI-generated images/video may carry C2PA / SynthID watermarks that
-   future systems classify on — prefer original/edited assets for anything load-bearing.
-
-Audit these with the "Content integrity" block in `references/checklist.md`.
-
 ## Workflow
 
 When asked to do Naver SEO on a project, work in this order. Read the project first —
@@ -108,10 +62,8 @@ Next.js App Router generates viewport and reads `metadata`/`sitemap`/`robots` fi
 4. **Favicon** — absolute-URL favicon + apple-touch-icon, crawlable. `references/markup.md`.
 5. **Structured data** — add the Naver-supported JSON-LD types that fit the site.
    `references/structured-data.md` has copy-paste examples and the support matrix.
-6. **Content hygiene + integrity** — original text (not text-baked-into-images), real `<a href>`
-   links (not `onclick`), no duplicate/stuffed titles. If the task involves **cross-posting or
-   AI-drafted batches**, apply the "Content integrity" section above (유사문서/원본성/pacing).
-   `references/checklist.md`.
+6. **Content hygiene** — original text (not text-baked-into-images), real `<a href>`
+   links (not `onclick`), no duplicate/stuffed titles. `references/checklist.md`.
 7. **Submission (manual, by the user)** — register in Search Advisor, verify ownership,
    submit sitemap + RSS, then verify with `site:` query. Steps in
    `references/submission.md`. These need the user's Naver login — produce the exact
