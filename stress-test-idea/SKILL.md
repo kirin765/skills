@@ -1,6 +1,6 @@
 ---
 name: stress-test-idea
-description: Adversarial pre-mortem for a business idea, product concept, project, or feature *before* the user invests serious time in building it. Forces a brutally honest 5-point critique — assumptions, competitors, why customers won't pay, what must be true, single biggest problem — then describes the version of the idea that would actually work. Use this skill whenever the user says "이 아이디어 평가해줘", "이거 될까?", "stress-test this idea", "find everything wrong", "should I build this", "tear this apart", "왜 안 될까", "is this worth building", "criticize my idea", "premortem", "validate my idea", or shares a business idea / PRD / product spec and asks for honest feedback. ALSO trigger proactively when the user is about to invoke /gsd-new-project, brainstorming, or any "start a new thing" workflow with a business premise that hasn't been adversarially examined yet — better to surface fatal flaws now than after 8 weeks of building. Default mode is harsh and specific; do not soften into generic advice.
+description: Adversarial pre-mortem for a business idea, product concept, project, or feature *before* the user invests serious time in building it. Forces a brutally honest 5-point critique — assumptions, competitors, why customers won't pay, what must be true, single biggest problem — then closes with a committed verdict (🟢 green light / 🟡 reshape / 🔴 kill + confidence) and the single cheapest 48-hour test to validate the idea before writing any code, and describes the version of the idea that would actually work. Use this skill whenever the user says "이 아이디어 평가해줘", "이거 될까?", "stress-test this idea", "find everything wrong", "should I build this", "tear this apart", "왜 안 될까", "is this worth building", "criticize my idea", "premortem", "validate my idea", or shares a business idea / PRD / product spec and asks for honest feedback. ALSO trigger proactively when the user is about to invoke /gsd-new-project, brainstorming, or any "start a new thing" workflow with a business premise that hasn't been adversarially examined yet — better to surface fatal flaws now than after 8 weeks of building. Default mode is harsh and specific; do not soften into generic advice.
 ---
 
 # stress-test-idea
@@ -32,6 +32,8 @@ If the user hasn't fully described the idea in the conversation, ask for these s
 - Who it's for (target customer, specifically — not "small businesses")
 - How it makes money (price point, model)
 - Why the user thinks it works (their core mechanism / hero scenario)
+- **Their edge / distribution** — existing audience, channel, account, code, or unfair advantage they already have, or honestly "none". This is load-bearing: a no-moat idea with free distribution survives; the same idea with zero distribution dies on CAC.
+- **Budget + time-to-first-dollar** — how much runway, and how fast they need the first paying customer. This decides whether a slow-burn play is even allowed, and it sizes the 48-hour test in the verdict.
 
 If they already described it in the conversation or in a file, **do not** re-ask. Pull what you need and proceed.
 
@@ -93,6 +95,31 @@ Produce a table:
 One paragraph. Name the *one* fatal flaw — the thing that, if true, kills the idea regardless of execution. This is usually the thing surfaced in Step 1B (the user's own evidence refuting the product). It is rarely "the market is small". It is usually a mechanism-level mismatch: the product solves problem X, but customers have problem Y; or the product promises to deliver result A, but the physics of the situation make result A impossible.
 
 End this section by quoting (if possible) the user's *own* research that proves the flaw. The strongest critique uses the user's own data against the user's own conclusion.
+
+### Step 1.5 — The verdict and the cheapest test
+
+The critique above is the diagnosis. The user still needs a *decision* and a *next move* — without them, a brutal critique just becomes paralysis, and the user either ignores it (and builds anyway) or abandons a salvageable idea. So commit to a verdict and hand them one test.
+
+#### The verdict
+
+One line. Pick exactly one label, and state your confidence (high / medium / low):
+
+- **🟢 GREEN LIGHT** — no fatal flaw found; the load-bearing premises are mostly 🟢/🟡 and the riskiest one is cheaply testable. Build, but run the test first.
+- **🟡 RESHAPE** — the idea as described dies, but a specific reformulation (see Step 2) survives the same critiques. This is the most common honest verdict. Name which pivot you'd take.
+- **🔴 KILL** — the core mechanism is refuted (usually by the section-5 flaw or by a 🔴 load-bearing premise that no pivot fixes). Say so plainly.
+
+Be willing to give 🟢. A skill that returns 🔴/🟡 every time is just a different kind of yes-man — it trains the user to discount you. The verdict has to be earned by the critique, in either direction.
+
+#### The single cheapest test
+
+Hand the user **one** test — the cheapest thing they can do in the next **48 hours** to find out if the idea is real, *before writing any code*. Rules that make this useful:
+
+- **It targets the single riskiest assumption** — almost always the section-5 flaw or the lowest-probability row in the section-4 table. Don't test something you're already confident about.
+- **It can return a NO.** A test the idea can't fail (a landing page that "validates" with zero traffic, asking friends if it's a good idea) is theater. Demand-side tests beat build-side tests: DM/email 20–30 real ICP members, a pre-sell, a waitlist with paid traffic, a manual-concierge delivery to one customer.
+- **It costs near-zero** — hours and outreach, not dollars and a built product.
+- **It has a pre-committed threshold.** State the number that means go and the number that means kill *now*, before the user runs it and rationalizes the result. E.g., "if fewer than 5 of 30 reply asking how to pay, kill it."
+
+Format: one short paragraph. The test, the threshold, and what a NO would prove.
 
 ### Step 2 — Reframe: what the idea would need to look like to work
 
@@ -166,10 +193,18 @@ Single response, structured exactly as:
 
 ---
 
+## Verdict: <🟢 GREEN LIGHT / 🟡 RESHAPE / 🔴 KILL> — confidence: <high / medium / low>
+<one line justifying the label; if RESHAPE, name the pivot you'd take>
+
+## Cheapest 48-hour test
+<one paragraph: the single test, its pre-committed go/kill threshold, what a NO would prove>
+
+---
+
 # What it would need to look like to work
 <2–4 concrete pivot directions>
 
 **Honest recommendation:** <one option with tradeoff>
 ```
 
-Do not add a section the user did not ask for. Do not add executive summary at the top. The critique structure *is* the deliverable.
+Do not add an executive summary at the top — the verdict lives *after* the critique, so it's earned, not asserted. The critique structure plus the verdict-and-test *is* the deliverable.

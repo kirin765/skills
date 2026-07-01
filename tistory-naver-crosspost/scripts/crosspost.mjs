@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // tistory-naver-crosspost — drive existing Chrome CDP session to publish a blog post
-// to Tistory (full auto draft) + Naver Blog (title + body + tags auto; body via insertText, not paste).
+// to Tistory (full auto draft, incl. Kakao login click-through) + Naver Blog
+// (title + hero image + body via keyboard.type + tags, all auto).
 //
 // Usage:
 //   node crosspost.mjs [mode] \
@@ -14,11 +15,12 @@
 // modes:
 //   both         (default)  tistory + naver
 //   tistory      tistory only (title + body + hero image + tags + auto-save)
-//   naver        naver only (title + body via insertText + tags via publish panel)
+//   naver        naver only (title + hero image + body via insertText + tags via publish panel)
 //   tags         re-fill Tistory tags on existing open tab
 //   naver-tags   clear + re-fill Naver tags on existing publish panel
 //
-// All inputs can also come from env: SOURCE_URL, HERO_PNG, TITLE, TAGS, TISTORY_URL, NAVER_URL.
+// All inputs can also come from env: SOURCE_URL, HERO_PNG, TITLE, TAGS, TISTORY_URL, NAVER_URL,
+// TISTORY_KAKAO_EMAIL.
 
 import { chromium } from "playwright";
 import { execSync } from "node:child_process";
@@ -37,6 +39,9 @@ const TITLE       = flag("title")       || process.env.TITLE;
 const TAGS_RAW    = flag("tags")        || process.env.TAGS         || "";
 const TISTORY_URL = flag("tistory-url") || process.env.TISTORY_URL || "https://kirin765.tistory.com/manage/newpost/";
 const NAVER_URL   = flag("naver-url")   || process.env.NAVER_URL   || "https://blog.naver.com/GoBlogWrite.naver";
+// Kakao account to pick on Tistory's "카카오계정으로 로그인" simple-login screen when the
+// session is logged out. Override per-account via TISTORY_KAKAO_EMAIL.
+const TISTORY_KAKAO_EMAIL = process.env.TISTORY_KAKAO_EMAIL || "kwan765@kakao.com";
 
 const TAGS = TAGS_RAW.split(",").map(s => s.trim()).filter(Boolean);
 
@@ -82,6 +87,23 @@ async function fetchArticleHtml(url) {
   body = body.replace(/href="\/"/g, `href="${origin}/"`);
   return body.trim();
 }
+// React's SSR HTML-escapes text nodes (including apostrophes → &#x27;), so any live page
+// rendered by React/Next.js will have quotes/ampersands/etc as entities in the raw HTML.
+// Tistory is unaffected (TinyMCE.setContent parses real HTML, entities decode naturally),
+// but Naver's plain-text path just types out the literal "&#x27;문의&#x27;, ..." string if
+// this isn't decoded — this was the actual cause of "이상하게 입력된다" reports, not a
+// caret-jump bug. Must run AFTER tag-stripping so it also covers decoded href/text content.
+function decodeEntities(s) {
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
 function htmlToPlain(html) {
   let s = html;
   s = s.replace(/<h2>(.*?)<\/h2>/g, "\n\n■ $1\n\n");
@@ -91,8 +113,80 @@ function htmlToPlain(html) {
   s = s.replace(/<strong>(.*?)<\/strong>/g, "$1");
   s = s.replace(/<a\s+href="([^"]+)"[^>]*>(.*?)<\/a>/g, "$2 ($1)");
   s = s.replace(/<[^>]+>/g, "");
+  s = decodeEntities(s);
   s = s.replace(/\n{3,}/g, "\n\n").trim();
   return s;
+}
+
+// ---------- Tistory Kakao simple-login (no-op if already logged in) ----------
+// When the CDP profile is logged out, newpost redirects to /auth/login. This drives the
+// Kakao click-through: "카카오계정으로 로그인" → pick the saved TISTORY_KAKAO_EMAIL profile →
+// back to the editor. CLICK-THROUGH ONLY: it never types into any field. The instant an
+// input[type=password] appears (dead Kakao session), it screenshots + throws so the routine
+// reports "manual login needed" instead of attempting a credential login. Live-verified.
+const ON_TISTORY_LOGIN = (u) => /\/auth\/login/.test(u) || /accounts\.kakao\.com/.test(u) || /kauth\.kakao\.com/.test(u);
+const ON_TISTORY_EDITOR = (u) => /\/manage\/newpost/.test(u);
+
+async function assertNoTistoryPassword(page, where) {
+  const hasPw = await page.evaluate(() => !!document.querySelector("input[type=password]")).catch(() => false);
+  if (hasPw) {
+    await page.screenshot({ path: "/tmp/tistory-login-HARDSTOP.png" }).catch(() => {});
+    throw new Error(`[tistory] Kakao needs manual password login (pw field at ${where}) — /tmp/tistory-login-HARDSTOP.png`);
+  }
+}
+
+async function ensureTistoryLogin(page) {
+  if (ON_TISTORY_EDITOR(page.url()) && await page.$("#post-title-inp")) return; // already logged in
+  const kakaoBtn = page.locator("a.link_kakao_id, a.btn_login.link_kakao_id").first();
+  const hasBtn = await kakaoBtn.isVisible({ timeout: 1500 }).catch(() => false);
+  if (!ON_TISTORY_LOGIN(page.url()) && !hasBtn) return; // not a login screen — let caller proceed
+
+  console.log("[tistory] logged out — driving Kakao login click-through");
+  await assertNoTistoryPassword(page, "tistory-auth-page");
+  if (hasBtn) {
+    await Promise.all([
+      page.waitForURL(/accounts\.kakao\.com|kauth\.kakao\.com|\/manage\/newpost/, { timeout: 12000 }).catch(() => {}),
+      kakaoBtn.click({ timeout: 5000 }).catch(() => {}),
+    ]);
+    await page.waitForTimeout(1500);
+  }
+
+  const deadline = Date.now() + 40000;
+  while (Date.now() < deadline) {
+    if (ON_TISTORY_EDITOR(page.url()) && await page.$("#post-title-inp")) { console.log("[tistory] Kakao login OK — editor ready"); return; }
+    await assertNoTistoryPassword(page, "kakao-loop");
+
+    if (/accounts\.kakao\.com/.test(page.url())) {
+      // Real saved accounts have a .tit_profile email; the "새 계정으로 로그인" row shares
+      // class wrap_profile but has no .tit_profile — exclude it. Prefer the expected email.
+      const saved = page.locator("a.wrap_profile:has(.tit_profile)");
+      const nSaved = await saved.count().catch(() => 0);
+      const expected = saved.filter({ hasText: TISTORY_KAKAO_EMAIL });
+      if ((await expected.count().catch(() => 0)) >= 1) {
+        console.log(`[tistory] selecting Kakao account ${TISTORY_KAKAO_EMAIL}`);
+        await expected.first().click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1800); continue;
+      }
+      if (nSaved > 1) {
+        await page.screenshot({ path: "/tmp/tistory-login-MULTIACCOUNT.png" }).catch(() => {});
+        throw new Error(`[tistory] ${nSaved} saved Kakao accounts, none matching ${TISTORY_KAKAO_EMAIL} — refusing to guess. /tmp/tistory-login-MULTIACCOUNT.png`);
+      }
+      if (nSaved === 1) {
+        console.log("[tistory] selecting single saved Kakao account");
+        await saved.first().click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1800); continue;
+      }
+      // consent/continue screen (no saved-profile card)
+      const cont = page.locator("button:has-text('계속하기'), button:has-text('동의하고 계속하기'), button.btn_agree, button[name=user_oauth_approval], button:has-text('전체 동의')").first();
+      if (await cont.isVisible({ timeout: 1500 }).catch(() => false)) {
+        await cont.click({ timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(1800); continue;
+      }
+    }
+    await page.waitForTimeout(800);
+  }
+  await page.screenshot({ path: "/tmp/tistory-login-TIMEOUT.png" }).catch(() => {});
+  throw new Error(`[tistory] login click-through did not reach editor in 40s (url=${page.url()}) — /tmp/tistory-login-TIMEOUT.png`);
 }
 
 // ---------- Tistory ----------
@@ -101,6 +195,9 @@ async function doTistory(ctx, htmlBody) {
   console.log("[tistory] opening newpost…");
   await page.goto(TISTORY_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(3500);
+
+  // if the session is logged out, click through Kakao login (never types credentials)
+  await ensureTistoryLogin(page);
 
   // dismiss possible continue-from-draft modal
   try {
@@ -174,16 +271,23 @@ async function doNaver(ctx, plainText) {
   await page.goto(NAVER_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(5000);
 
-  // dismiss continue popup
-  for (const frame of page.frames()) {
-    try {
-      const cancel = frame.locator("button:has-text('취소'), .se-popup-button-cancel").first();
-      if (await cancel.isVisible({ timeout: 1000 })) {
-        await cancel.click();
-        console.log("[naver] dismissed continue popup");
-        break;
-      }
-    } catch {}
+  // dismiss "작성 중인 글이 있습니다" recovery popup → discard (취소) so we inject clean.
+  // The recovery popup renders inside the PostWriteForm iframe a beat after load, so poll a few times.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    let done = false;
+    for (const frame of page.frames()) {
+      try {
+        const cancel = frame.locator("button.se-popup-button-cancel").first();
+        if (await cancel.isVisible({ timeout: 500 })) {
+          await cancel.click();
+          console.log("[naver] dismissed continue popup");
+          done = true;
+          break;
+        }
+      } catch {}
+    }
+    if (done) break;
+    await page.waitForTimeout(700);
   }
   await page.waitForTimeout(1500);
 
@@ -203,35 +307,117 @@ async function doNaver(ctx, plainText) {
   }
   if (!titleOk) console.log("[naver] title field not found — type manually");
 
-  // body — inject via insertText, NOT clipboard paste.
-  // Naver SmartEditor mis-decodes pasted UTF-8 as MacRoman → 외계어/mojibake.
-  // The typing path (insertText) lands clean, same as the title above.
-  if (titleOk) {
-    await page.keyboard.press("Enter"); // title → first body paragraph
-    await page.waitForTimeout(500);
-  } else {
-    // fallback: focus first body paragraph directly
-    for (const frame of page.frames()) {
-      try {
-        const p = frame.locator(".se-text-paragraph").first();
-        if (await p.isVisible({ timeout: 1500 })) { await p.click({ force: true }); break; }
-      } catch {}
-    }
-    await page.waitForTimeout(400);
-  }
-  const lines = plainText.replace(/\r/g, "").split("\n");
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].length) await page.keyboard.insertText(lines[i]);
-    if (i < lines.length - 1) await page.keyboard.press("Enter");
-  }
-  console.log(`[naver] body injected via insertText (${lines.length} lines) — no clipboard, no mojibake`);
-  console.log("[naver] hero PNG (drag manually to top of body): " + HERO_PNG);
+  // hero image at TOP — insert BEFORE body text so it becomes the first body component.
+  // Live-verified order: [title, IMAGE, body-text]. The 사진 button fires a native file
+  // picker (no input[type=file] at rest); body text then goes into the empty paragraph
+  // Naver places AFTER the image (see injectNaverBody → .se-text-paragraph.last()).
+  if (HERO_PNG) await insertNaverHeroImage(page, HERO_PNG);
+
+  // body via keyboard.type, line-by-line (typing path) — NEVER clipboard/paste: Naver
+  // SmartEditor mis-decodes pasted UTF-8 as MacRoman → 외계어/mojibake. Real key events also
+  // avoid the per-line bulk-insertText caret-jump bug on punctuation-heavy lines (see below).
+  await injectNaverBody(page, plainText);
 
   // tags via publish panel
   await doNaverTags(page);
 
   await page.screenshot({ path: "/tmp/naver-crosspost-ready.png" });
   console.log("[naver] screenshot: /tmp/naver-crosspost-ready.png");
+}
+
+// Insert the hero PNG as the FIRST body component (above the text). Live-verified against
+// blog.naver.com PostWriteForm: the 사진 button (button.se-image-toolbar-button) opens a native
+// OS file picker — there is NO input[type=file] at rest — intercepted via filechooser. The
+// committed image is a .se-component.se-image inside .se-canvas .se-components-wrap (NOT the
+// nonexistent .se-main-container; the 라이브러리 side-panel thumbnail is not a .se-component).
+// No-op-safe: logs + returns if the button/frame is missing, never throws.
+async function insertNaverHeroImage(page, heroPng) {
+  const ef = page.frames().find(f => f.url().includes("PostWriteForm"));
+  if (!ef) { console.log("[naver-img] editor frame missing — skip image"); return false; }
+
+  const countImages = () => ef.evaluate(() => {
+    const w = document.querySelector(".se-canvas .se-components-wrap") || document.querySelector(".se-components-wrap");
+    return w ? w.querySelectorAll(".se-component.se-image").length : 0;
+  });
+  // idempotency: don't re-upload if the editor already holds an image (re-run case)
+  if ((await countImages()) > 0) { console.log("[naver-img] image already present — skip"); return true; }
+
+  const photoBtn = ef.locator("button.se-image-toolbar-button").first();
+  if (!(await photoBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+    console.log("[naver-img] 사진 button not found — skip image (drag manually): " + heroPng);
+    return false;
+  }
+  // arm filechooser BEFORE click; noWaitAfter so the click doesn't block on the modal picker
+  const chooserP = page.waitForEvent("filechooser", { timeout: 8000 }).catch(() => null);
+  try { await photoBtn.click({ noWaitAfter: true, timeout: 5000 }); }
+  catch (e) { console.log("[naver-img] 사진 click failed — skip image:", e.message); return false; }
+  const chooser = await chooserP;
+  if (!chooser) { console.log("[naver-img] no file picker appeared — skip image (drag manually): " + heroPng); return false; }
+  try { await chooser.setFiles(heroPng); }
+  catch (e) { console.log("[naver-img] setFiles failed — skip image:", e.message); return false; }
+
+  let ok = false;
+  for (let i = 0; i < 25; i++) {
+    await page.waitForTimeout(800);
+    if ((await countImages()) > 0) { ok = true; break; }
+  }
+  console.log("[naver-img] hero image inserted at top:", ok);
+  await page.waitForTimeout(800);
+  return ok;
+}
+
+async function injectNaverBody(page, plainText) {
+  const lines = plainText.replace(/\n{3,}/g, "\n\n").trim().split("\n");
+  let clicked = false;
+  for (const frame of page.frames()) {
+    try {
+      // Target the LAST text-component paragraph (the empty body paragraph Naver places
+      // after the hero image), NOT .se-text-paragraph.first() — which can be the title /
+      // an image-caption paragraph. .se-component.se-text scopes to body text only.
+      const body = frame.locator(".se-component.se-text .se-text-paragraph").last();
+      if (await body.isVisible({ timeout: 1500 })) { await body.click(); clicked = true; break; }
+    } catch {}
+  }
+  if (!clicked) { console.log("[naver] body paragraph not found — body NOT injected"); return; }
+  await page.waitForTimeout(400);
+  // Per-line bulk insertText (single call for the whole line) has the same caret-jump bug
+  // documented for the title: a line containing paired punctuation (quotes '…', em-dash —,
+  // "label:" colon segments) can land the caret mid-string and scramble character order,
+  // because SmartEditor's autoformat (quote pairing / auto-list-on-colon) mutates the DOM
+  // mid-insert while insertText is still writing the rest of the chunk. keyboard.type()
+  // fires real per-character key events instead, so SmartEditor's mutation happens between
+  // characters rather than mid-chunk — same fix already proven for the title field.
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].length) await page.keyboard.type(lines[i], { delay: 4 });
+    if (i < lines.length - 1) await page.keyboard.press("Enter");
+    await page.waitForTimeout(25);
+  }
+  console.log(`[naver] body typed via keyboard.type (${lines.length} lines)`);
+
+  // Strip inherited 취소선: if the editor's active format applied line-through to the
+  // typed text (non-fresh editor), select all body and toggle the strikethrough button off.
+  try {
+    const ef = page.frames().find(f => f.url().includes("PostWriteForm"));
+    const struck = await ef.evaluate(() => {
+      const nodes = document.querySelectorAll(".se-text-paragraph, .se-text-paragraph *");
+      for (const n of nodes) {
+        if ((getComputedStyle(n).textDecorationLine || "").includes("line-through")) return true;
+      }
+      return false;
+    });
+    if (struck) {
+      await page.keyboard.press("Meta+a");
+      await page.waitForTimeout(250);
+      await ef.evaluate(() => {
+        const b = [...document.querySelectorAll("button")].find(x =>
+          /취소선|strikethrough/i.test((x.getAttribute("aria-label") || "") + " " + x.className + " " + (x.title || "")));
+        if (b) b.click();
+      });
+      await page.waitForTimeout(300);
+      await page.keyboard.press("End");
+      console.log("[naver] removed inherited 취소선");
+    }
+  } catch (e) { console.log("[naver] strike-check skipped:", e.message); }
 }
 
 async function doNaverTags(page) {

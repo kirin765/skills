@@ -1,0 +1,27 @@
+{
+  "skill_name": "brain-capture",
+  "notes": "Each prompt embeds a realistic end-of-session situation plus the invocation, since a test subagent has no real prior conversation. The skill is propose-first, so a correct run halts at the proposal (which files, what content, what is skipped) WITHOUT writing to or committing the brain repo. Grade the proposal.",
+  "evals": [
+    {
+      "id": 0,
+      "name": "research-session-to-report",
+      "prompt": "다른 프로젝트에서 방금 한국 1인 개발자가 만들 만한 '전자세금계산서 발행 자동화' 니치를 deep research 했어. 핵심 발견: (1) 국세청 홈택스가 API를 공식 제공하지만 사업자 공동인증서 등록이 필요해 진입장벽이 있음, (2) 경쟁툴 '바로빌'·'팝빌'은 월 구독+건당 과금이라 영세 셀러에겐 비쌈, (3) 카페·커뮤니티에서 '계산서 한 장 끊으려고 월 구독하기 싫다'는 verbatim 다수 발견. 이거 brain에 정리해줘.",
+      "expected_output": "Proposes a reusable report in reports/ (the researched answer) and/or a wiki/topics update, cross-links to existing sajangbu/market-validation topics where relevant, adds an index.md line for any new page, drafts a query|/ingest| log entry with provenance, and shows the plan for approval WITHOUT writing files or committing.",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "decision-shifts-priorities",
+      "prompt": "오늘 길게 고민한 끝에 결정했어: appfigures 유료 Public Data add-on은 당분간 결제 안 하고, 경쟁사 ASO 데이터 없이 내 앱 자체 지표만으로 간다. 이유는 월 비용 대비 솔로 단계에선 ROI가 안 나오고, 지금 병목은 데이터가 아니라 유통이라서. 이 결정 brain에 남겨줘.",
+      "expected_output": "Recognizes this as a durable decision: proposes a row in wiki/decision-log.md with the rationale, updates wiki/memory.md only if a stable priority actually shifted, appends a log entry, links to relevant topics (appfigures/sajangbu). Presents the exact rows/lines for approval before writing.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "routine-code-session-restraint",
+      "prompt": "오늘 sajangbu 정산툴에서 쿠팡 윙 스크래퍼 셀렉터가 바뀐 거 고치고, 에러 핸들링 리팩토링하고, 테스트 몇 개 추가했어. brain에 정리해줘.",
+      "expected_output": "Applies the durability filter and concludes most of this is code-derivable (recoverable from the repo/git), so it proposes minimal or no brain change — at most a one-line log entry — and explains why it is not creating topic/report pages. Does NOT manufacture content to fill brain.",
+      "files": []
+    }
+  ]
+}
