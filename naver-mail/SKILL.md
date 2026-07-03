@@ -54,7 +54,9 @@ python scripts/read_mail.py --uid 12345         # print full decoded body
 python scripts/read_mail.py --uid 12345 --mark-read
 ```
 
-Listing uses `BODY.PEEK` and opens the mailbox read-only, so it never marks anything read. A message is only marked read when you pass `--mark-read` on a `--uid` fetch. Filters combine (e.g. `--unseen --from boss@x.com`). Korean subject/sender search is sent as UTF-8 automatically.
+Listing uses `BODY.PEEK` and opens the mailbox read-only, so it never marks anything read. A message is only marked read when you pass `--mark-read` on a `--uid` fetch. Filters combine (e.g. `--unseen --from boss@x.com`).
+
+ASCII `--from`/`--subject` terms search the whole mailbox server-side. **Korean (non-ASCII) `--subject`/`--from` terms are matched client-side over the newest ~500 messages** — imaplib's UTF-8 literal handling is unreliable against Naver, and client-side matching always works. So a Korean subject search only reaches recent mail; for older Korean mail, narrow with `--since` or raise `CLIENT_SCAN_CAP` in the script.
 
 Typical read flow: run a list to get UIDs, then `--uid <n>` to read the one the user cares about.
 

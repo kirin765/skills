@@ -16,6 +16,7 @@ Examples:
 import argparse
 import email
 import imaplib
+import re
 import sys
 from datetime import datetime
 from email.header import decode_header, make_header
@@ -50,69 +51,97 @@ def connect():
     return imap
 
 
-def build_search(args):
-    """Return (charset, criteria_list). charset is 'UTF-8' when a term is non-ASCII."""
-    criteria = []
-    if args.unseen:
-        criteria.append("UNSEEN")
-    if args.since:
-        d = datetime.strptime(args.since, "%Y-%m-%d")
-        criteria += ["SINCE", d.strftime("%d-%b-%Y")]
-    if args.from_addr:
-        criteria += ["FROM", args.from_addr]
-    if args.subject:
-        criteria += ["SUBJECT", args.subject]
-    if args.search:
-        criteria += args.search.split()
-    if not criteria:
-        criteria = ["ALL"]
-    non_ascii = any(not str(c).isascii() for c in criteria)
-    return ("UTF-8" if non_ascii else None), criteria
+CLIENT_SCAN_CAP = 500  # newest N headers scanned for non-ASCII (Korean) filters
+
+
+def fetch_headers(imap, uids):
+    """uids: list[bytes]. Return {uid_str: (date, from, subject, unread)}.
+
+    Naver returns each message as a (metadata, header-bytes) tuple followed by a
+    trailing bytes element like b' UID 47618)'. FLAGS live in the metadata, the UID
+    in the trailing element — so join both before extracting either.
+    """
+    if not uids:
+        return {}
+    typ, resp = imap.uid(
+        "FETCH", b",".join(uids), "(FLAGS BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])"
+    )
+    if typ != "OK":
+        sys.exit(f"IMAP fetch failed: {resp}")
+    rows = {}
+    i = 0
+    while i < len(resp):
+        part = resp[i]
+        if isinstance(part, tuple):
+            descriptor = part[0].decode(errors="replace")
+            if i + 1 < len(resp) and isinstance(resp[i + 1], (bytes, bytearray)):
+                descriptor += " " + resp[i + 1].decode(errors="replace")
+                i += 1
+            m_uid = re.search(r"UID (\d+)", descriptor)
+            m_flags = re.search(r"FLAGS \(([^)]*)\)", descriptor)
+            if m_uid:
+                hdr = email.message_from_bytes(part[1])
+                rows[m_uid.group(1)] = (
+                    decode_hdr(hdr.get("Date", "")),
+                    decode_hdr(hdr.get("From", "")),
+                    decode_hdr(hdr.get("Subject", "(제목 없음)")),
+                    "\\Seen" not in (m_flags.group(1) if m_flags else ""),
+                )
+        i += 1
+    return rows
 
 
 def list_messages(imap, args):
     imap.select("INBOX", readonly=True)
-    charset, criteria = build_search(args)
-    if charset:
-        enc = [c.encode("utf-8") if not str(c).isascii() else c for c in criteria]
-        typ, data = imap.uid("SEARCH", charset, *enc)
-    else:
-        typ, data = imap.uid("SEARCH", None, *criteria)
+
+    # ASCII text terms go server-side (searches the whole mailbox). Non-ASCII terms
+    # (Korean) are filtered client-side over recent headers — imaplib's UTF-8 literal
+    # handling is unreliable against Naver, and client-side matching always works.
+    server, client = [], []
+    if args.unseen:
+        server.append("UNSEEN")
+    if args.since:
+        server += ["SINCE", datetime.strptime(args.since, "%Y-%m-%d").strftime("%d-%b-%Y")]
+    if args.search:
+        server += args.search.split()
+    for field, val in (("FROM", args.from_addr), ("SUBJECT", args.subject)):
+        if not val:
+            continue
+        if val.isascii():
+            server += [field, val]
+        else:
+            client.append((field, val.lower()))
+    if not server:
+        server = ["ALL"]
+
+    typ, data = imap.uid("SEARCH", None, *server)
     if typ != "OK":
         sys.exit(f"IMAP search failed: {data}")
-    uids = data[0].split()
+    uids = data[0].split()[::-1]  # newest first
     if not uids:
         print("No matching messages.")
         return
-    uids = uids[::-1][: args.limit]
 
-    fetch_set = b",".join(uids)
-    typ, resp = imap.uid("FETCH", fetch_set, "(FLAGS BODY.PEEK[HEADER.FIELDS (FROM SUBJECT DATE)])")
-    if typ != "OK":
-        sys.exit(f"IMAP fetch failed: {resp}")
+    scan = uids[:CLIENT_SCAN_CAP] if client else uids[: args.limit]
+    rows = fetch_headers(imap, scan)
 
-    rows = {}
-    for part in resp:
-        if not isinstance(part, tuple):
+    shown = 0
+    for uid in (u.decode() for u in scan):
+        row = rows.get(uid)
+        if not row:
             continue
-        meta, raw_hdr = part[0], part[1]
-        meta = meta.decode(errors="replace")
-        uid = meta.split("UID", 1)[1].split()[0].strip("()") if "UID" in meta else "?"
-        unread = "\\Seen" not in meta
-        hdr = email.message_from_bytes(raw_hdr)
-        rows[uid] = (
-            decode_hdr(hdr.get("Date", "")),
-            decode_hdr(hdr.get("From", "")),
-            decode_hdr(hdr.get("Subject", "(제목 없음)")),
-            unread,
-        )
-
-    for uid in [u.decode() for u in uids]:
-        if uid not in rows:
-            continue
-        date, frm, subj, unread = rows[uid]
+        date, frm, subj, unread = row
+        if client:
+            hay = {"FROM": frm.lower(), "SUBJECT": subj.lower()}
+            if not all(term in hay[field] for field, term in client):
+                continue
         flag = " [UNREAD]" if unread else ""
         print(f"UID {uid}{flag}\n  {date}\n  From: {frm}\n  Subj: {subj}\n")
+        shown += 1
+        if shown >= args.limit:
+            break
+    if shown == 0:
+        print("No matching messages.")
 
 
 def extract_body(msg):
