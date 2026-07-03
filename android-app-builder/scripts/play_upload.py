@@ -29,7 +29,7 @@ def client():
     return build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
 
 
-def run(cfg, commit):
+def run(cfg, commit, changes_not_sent=False):
     pkg = cfg["packageName"]
     svc = client()
     edits = svc.edits()
@@ -89,12 +89,22 @@ def run(cfg, commit):
             print(f"  track[{track}] ← versionCodes {version_codes}"
                   + (" (+releaseNotes)" if cfg.get("releaseNotes") else ""))
 
-        edits.validate(packageName=pkg, editId=edit_id).execute()
-        print("  validate OK")
+        # 일부 앱은 API 자동 검토전송이 막혀 validate/commit에 changesNotSentForReview=true가 필수다.
+        # 이 경우 validate조차 400을 내므로, 그 모드에선 validate를 건너뛰고 commit에서 검증한다.
+        if not changes_not_sent:
+            edits.validate(packageName=pkg, editId=edit_id).execute()
+            print("  validate OK")
 
         if commit:
-            edits.commit(packageName=pkg, editId=edit_id).execute()
-            print("COMMITTED → changes sent for review.")
+            if changes_not_sent:
+                edits.commit(packageName=pkg, editId=edit_id,
+                             changesNotSentForReview=True).execute()
+                print("COMMITTED (changesNotSentForReview=true) → 트랙에 반영됨. "
+                      "이 앱은 API 자동 검토전송이 막혀 있으니, Play Console에서 "
+                      "'변경사항 검토를 위해 전송'을 1회 클릭해 재심사 제출을 완료하세요.")
+            else:
+                edits.commit(packageName=pkg, editId=edit_id).execute()
+                print("COMMITTED → changes sent for review.")
         else:
             edits.delete(packageName=pkg, editId=edit_id).execute()
             print("DRY RUN ok → edit abandoned (nothing persisted). Re-run with --commit to ship.")
@@ -116,6 +126,14 @@ def main():
     try:
         run(cfg, a.commit)
     except HttpError as e:
+        if e.resp.status == 400 and "changesNotSentForReview" in str(e):
+            print("↻ 이 앱은 API 자동 검토전송 불가 → changesNotSentForReview=true로 재시도.",
+                  file=sys.stderr)
+            try:
+                run(cfg, a.commit, changes_not_sent=True)
+                return
+            except HttpError as e2:
+                e = e2
         print(f"\nAPI error {e.resp.status}: {e}", file=sys.stderr)
         if e.resp.status in (401, 403):
             print("→ The service account likely lacks Play Console permission for this app, "
