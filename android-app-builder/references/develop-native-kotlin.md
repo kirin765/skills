@@ -57,6 +57,8 @@ keytool -genkeypair -v -keystore upload-keystore.jks \
 # 비밀번호·별칭은 사용자 입력
 ```
 
+**런처 아이콘(필수 — 안 하면 스토어 불일치 반려):** `bundleRelease` 전에 스캐폴드 기본 `ic_launcher`를 `assets/icon.png`(1024)에서 생성한 실제 아이콘으로 덮어쓴다. `references/app-icon.md`의 "네이티브 Kotlin" 절(밀도 PNG + adaptive `mipmap-anydpi-v26` 처리)을 따른다. 스토어 512도 같은 소스에서 뽑는다.
+
 `app/build.gradle.kts`에 `signingConfigs.release`를 `local.properties`/환경변수에서 읽게 연결한 뒤:
 ```bash
 ./gradlew bundleRelease

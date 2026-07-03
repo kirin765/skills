@@ -64,6 +64,7 @@ gh repo create kirin765/<app-name> --private --source=. --remote=origin --push
 ### 1단계 종료 조건
 - 테스트 통과(`./gradlew test` 또는 `npx tsc --noEmit && npm run build`)
 - 에뮬레이터에서 MVP가 손으로 눌러 동작
+- **런처 아이콘을 단일 소스(`assets/icon.png` 1024)에서 생성**해 스캐폴드 기본 템플릿 아이콘(X·별)을 덮어씀 — `references/app-icon.md`. 안 하면 앱은 템플릿 아이콘, 스토어는 예쁜 512로 갈려 **"스토어 등록정보 불일치" 반려**가 난다(컬러 메모리 반려 원인). AAB 빌드 **전에** 처리.
 - **서명된 release AAB** 생성, 경로 기록(3단계 업로드용). 키스토어·서명 비번은 사용자 자산 — git 커밋 금지.
 
 ---
@@ -92,7 +93,7 @@ gh repo create kirin765/<app-name> --private --source=. --remote=origin --push
 1. **raw 캡처**: 네이티브/게임 모두 에뮬레이터에서 `adb exec-out screencap`으로 1080×1920(`references/develop-native-kotlin.md`의 "에뮬레이터 스크린샷").
 2. **프레임+카피 합성**: `references/asset-scripts.md`의 "폰 프레임 + 카피 스크린샷"(raw를 HTML에 박아 `page.setContent`→1242×2208 렌더). 헤드라인은 §2.5 `aso-audit` 결과(한국어 기본).
 
-같은 폴더(`~/Downloads/<app>-store-assets/`)에 아이콘 512·피처 1024×500·스크린샷을 모아 3단계 업로드를 한 번에 묶는다.
+같은 폴더(`~/Downloads/<app>-store-assets/`)에 아이콘 512·피처 1024×500·스크린샷을 모아 3단계 업로드를 한 번에 묶는다. **아이콘 512는 반드시 런처 아이콘과 같은 소스(`assets/icon.png`)에서 뽑는다 — PWA 아이콘 재사용·별도 제작 금지**(`references/app-icon.md`). 이 둘이 갈리면 반려된다.
 
 ### 개인정보처리방침 URL — 데이터 거동 티어로 분기 (앱 유형 무관)
 정책 내용은 유틸/게임이 아니라 **무엇을 수집/공유하느냐**가 결정한다. 대부분 공통 2개로 수렴:

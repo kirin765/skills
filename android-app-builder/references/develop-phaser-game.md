@@ -52,6 +52,8 @@ npx cap add android              # 최초 1회
 npx cap sync android             # dist → android/app/src/main/assets/public
 ```
 
+**런처 아이콘(필수 — 안 하면 스토어 불일치 반려):** `npx cap add android`가 남긴 기본 Capacitor 아이콘을 `assets/icon.png`(1024)에서 생성한 실제 아이콘으로 덮어쓴다. `references/app-icon.md`의 "Capacitor" 절(`@capacitor/assets generate --android` → `cap sync`)을 **`bundleRelease` 전에** 실행. 스토어 512도 같은 소스에서 뽑는다.
+
 서명·`bundleRelease`는 네이티브와 동일 — 키스토어 생성/서명/AAB 산출 명령은 `references/develop-native-kotlin.md`의 "키스토어·서명 AAB" 절을 그대로 쓴다(Capacitor가 만든 `android/` Gradle 프로젝트에 동일 적용). 산출물 경로 `android/app/build/outputs/bundle/release/app-release.aab`를 기록 — 제출(§3)에서 업로드.
 
 > 에뮬레이터 스크린샷 캡처도 네이티브와 동일(`references/develop-native-kotlin.md`의 "에뮬레이터 스크린샷"). 단, 게임 루프가 백그라운드 탭에서 멈추는 특성 때문에 에뮬레이터 캡처가 웹 캡처보다 신뢰성 높다.

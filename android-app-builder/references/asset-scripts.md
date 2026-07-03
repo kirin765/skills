@@ -106,6 +106,7 @@ Vite면 `public/`에 두면 `/<파일>.html`로 서빙. 배포 후 `curl -s -o /
 
 ## 아이콘 512px
 
-PWA면 `public/pwa-512x512.png` 재사용. 없으면:
-`npx @vite-pwa/assets-generator --preset minimal public/icon.svg`
-→ `pwa-192/512`, `maskable-icon-512`, `apple-touch-icon-180` 생성.
+**런처 아이콘과 반드시 같은 소스에서 뽑는다** — `references/app-icon.md`의 단일 소스 규칙. PWA 아이콘이나 별도 제작 아이콘을 스토어에만 쓰면 앱에 설치된 런처 아이콘과 갈려 "스토어 등록정보 불일치"로 반려된다.
+```bash
+sips -z 512 512 assets/icon.png --out ~/Downloads/<app>-store-assets/icon-512.png
+```
