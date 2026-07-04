@@ -73,6 +73,8 @@ python3 warm.py --dump                                   # 셀렉터 보정용 U
 
 일일 캡·휴식일·최소 간격 등은 `warm.config.json` 이 관리한다. 워밍과 업로드를 같은 시간대에 겹치지 않게 — 세션 패턴이 기계적으로 보이는 걸 피한다.
 
+**무인 스케줄 (2026-07-04~)**: launchd `com.brain.ig-warm` 이 매일 12:40·21:35 에 `warm-routine.sh` 를 실행한다 — 태블릿 IP 자동 탐색(모델 검증 포함) → `warm.py --account happylife2080100`. 프라이밍 대상은 happylife 만 (기준: brain `wiki/topics/ig-topic-priming.md` — photofix 는 신규 계정이라 게시가 곧 프라이밍). 니치 패스: `explore/tags/` 딥링크 그리드에서 시청 — `GRID_CELL`(`image_button`) 셀렉터는 미캘리브레이션이므로 첫 실기기 런에서 `--dump` 로 확인·보정할 것.
+
 ## 4. UI 드리프트 대응
 
 IG 앱 업데이트로 셀렉터가 깨지는 건 예정된 일이다. 그때:
@@ -84,5 +86,5 @@ IG 앱 업데이트로 셀렉터가 깨지는 건 예정된 일이다. 그때:
 
 - IG **웹** 자동화 / 데이터 수집 → `cdp-anywhere`
 - IG 오디언스 분석 → `ig-audience-intel`
-- 계정 프라이밍 **큐 생성**(무엇을 볼지) → `bin/ig-prime/ig_prime.py` (cron 이 이미 돌림)
+- CDP 큐 생성 `bin/ig-prime/ig_prime.py` — **폐지됨(2026-07-04)**: cron 해제, 프라이밍은 위 warm-routine(launchd) 이 대체. 파일은 참고용으로만 남아 있다
 - 여러 SNS 동시 홍보 오케스트레이션 → `app-launch-promo`
