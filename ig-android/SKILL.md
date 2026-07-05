@@ -16,6 +16,7 @@ adb + uiautomator2 로 IM-H031 태블릿의 Instagram 앱을 조작한다. 브�
 - IP를 모르면 서브넷 스캔: `for i in $(seq 2 254); do (nc -z -G 1 192.168.0.$i 5555 2>/dev/null && echo OPEN $i) & done; wait` → 각 OPEN IP에 connect + 모델 확인.
 - 둘 다 실패하면 USB 연결 후 `adb tcpip 5555` 재활성화가 필요하다 — 이건 사용자에게 요청.
 - 화면잠금은 '없음'이어야 무인 조작 가능 (igw.device.wake 가 swipe 키가드만 해제).
+- 작업 종료 시 화면은 `igw.device.sleep(d)` 로 끈다 — warm.py 는 finally 에서 항상, upload_reel.py 는 게시 성공 시 자동 수행. 수동/애드혹 조작 후에도 마지막에 호출할 것.
 
 ## 1. 안전 계약 (모든 작업 공통)
 
