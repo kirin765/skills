@@ -39,6 +39,19 @@ If they already described it in the conversation or in a file, **do not** re-ask
 
 Read any planning docs, spec markdowns, research files, or memory the user references. If the user has already collected verbatim user research, **read it adversarially** — see Step 1B.
 
+### Step 0.5 — Community scan (empirical, ~30 min, before any critique)
+
+The critique in Step 1 is reasoning; this step is **measurement**. Before writing a single critique section, go look at where the target users already gather and search for the idea's core mechanism. Armchair adversarialism misses free incumbents that one community search surfaces instantly.
+
+1. **Identify the niche's main communities** — Naver cafe (cafe-article search API ranks cafes by activity), subreddit, DC gallery, Discord, Facebook group. Note member counts: community size is a direct niche-size signal.
+2. **Search the core feature keywords inside them** — not the product name, the *capability* ("사진 도안 변환", "정산 자동화"). Read the top threads.
+3. **Collect what you find**: existing free alternatives (web tools, community-shared spreadsheets, official features), "이미 ○○ 있어요" replies, and — highest value — threads where *someone else already pitched a similar thing* and how the community responded. A predecessor who got deflated is a free natural experiment.
+4. **Check the named incumbents directly** (fetch the site/app) — confirm what they actually do and don't do, so differentiation claims in Step 2 rest on facts.
+
+**Gate rule:** if the scan finds a free, functioning incumbent covering the core mechanism, the idea is **automatically 🟡 RESHAPE-or-worse until a specific differentiation is proven** — "ours is free too" is dead on arrival. Cite scan findings (thread dates, member counts, incumbent URLs) verbatim in sections 2 and 5.
+
+Skip only when the scan already happened in this session or the user explicitly says the incumbent landscape is known — never because the idea "seems novel".
+
 ### Step 1 — Run the 5-point critique
 
 Produce a response with these exact five sections, in this exact order. Use the user's actual idea — do not write template-y critiques. Cite specific files, claims, numbers, or memories where you can.
@@ -60,7 +73,7 @@ The classic failure mode is reading "5 channels under one Gmail all got banned t
 List 4–7 specific existing players, in a table or short list. Include:
 
 - **Direct paid competitors** (named)
-- **Free alternatives** (community / r/X subreddits / X accounts / official tooling) — these are often more dangerous than paid competitors because they have zero CAC
+- **Free alternatives** (community / r/X subreddits / X accounts / official tooling) — these are often more dangerous than paid competitors because they have zero CAC. Source these from the Step 0.5 scan, not from memory — cite the actual thread/URL found
 - **DIY substitutes** (internal scripts, spreadsheets) — what advanced users in this segment already build for themselves
 - **Adjacent platforms** that could expand into this space
 - **The platform itself** (if the product depends on a platform API) shipping a native version
@@ -167,7 +180,9 @@ The reason this skill exists: in a real session, the user spent weeks building a
 
 The cost of that miss was weeks. The cost of running this skill at session zero would have been five minutes.
 
-**If you are running this skill, your job is to be the version of Claude that *would* have caught it.**
+A second documented miss (2026-07-06, why Step 0.5 exists): the 보석십자수 app's viral hook was defined as "free photo→pattern converter as the wedge against paid custom kits". One search inside the niche's main Naver cafe surfaced a 6/11 thread where another builder pitched the same converter and was told "pic2pat is already famous and free; demand looks small". The free incumbent (pic2pat.com, 20 languages incl. Korean) predated the app by years. App development and IG promo both started before anyone searched the community. Cost of the scan that would have caught it: ~30 minutes, ₩0.
+
+**If you are running this skill, your job is to be the version of Claude that *would* have caught both.**
 
 ## Output format
 
