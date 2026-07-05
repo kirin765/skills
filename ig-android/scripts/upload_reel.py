@@ -184,6 +184,7 @@ def main() -> int:
         f.click_text("Share", "share_btn")
     time.sleep(8)
     f.snap("published")
+    device.sleep(d)
     print(f"PUBLISHED as {args.account}. Verify Insights/Boost visible in: {shots}")
     return 0
 
