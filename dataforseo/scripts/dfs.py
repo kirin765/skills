@@ -84,7 +84,7 @@ def cmd_volume(args):
 
 def cmd_app_keywords(args):
     loc, lang = geo(args)
-    res = call("/dataforseo_labs/google_play/keywords_for_app/live",
+    res = call("/dataforseo_labs/google/keywords_for_app/live",
                [{"app_id": args.app_id, "location_code": loc, "language_code": lang, "limit": args.limit}])
     items = (res[0].get("items") if res else None) or []
     if args.json: print(json.dumps(items, ensure_ascii=False, indent=2)); return
@@ -122,7 +122,7 @@ def cmd_difficulty(args):
 
 def cmd_app_competitors(args):
     loc, lang = geo(args)
-    res = call("/dataforseo_labs/google_play/app_competitors/live",
+    res = call("/dataforseo_labs/google/app_competitors/live",
                [{"app_id": args.app_id, "location_code": loc, "language_code": lang, "limit": args.limit}])
     items = (res[0].get("items") if res else None) or []
     if args.json: print(json.dumps(items, ensure_ascii=False, indent=2)); return
