@@ -53,6 +53,37 @@ async function firstVisible(page, selectors, timeout = 45000) {
   throw new Error(`none visible: ${selectors.join(' | ')}`)
 }
 
+// A fresh profile triggers TikTok's react-joyride onboarding tour, whose
+// overlay intercepts pointer events and blocks every click. Skip it (proper
+// React teardown) then strip any residual overlay/spotlight nodes.
+async function dismissTour(page, log) {
+  if (!(await page.locator('#react-joyride-portal').count().catch(() => 0))) return
+  const skipButtons = [
+    '[data-test-id="button-skip"]',
+    '[data-test-id="button-close"]',
+    '#react-joyride-portal button[aria-label="Skip"]',
+    '#react-joyride-portal button:has-text("Skip")',
+    '#react-joyride-portal button:has-text("건너뛰기")',
+    '#react-joyride-portal button:has-text("닫기")',
+  ]
+  for (const sel of skipButtons) {
+    const b = page.locator(sel).first()
+    if ((await b.count().catch(() => 0)) && (await b.isVisible().catch(() => false))) {
+      await b.click().catch(() => {})
+      await page.waitForTimeout(400)
+      break
+    }
+  }
+  await page
+    .evaluate(() => {
+      document
+        .querySelectorAll('#react-joyride-portal, .react-joyride__overlay, .react-joyride__spotlight')
+        .forEach((el) => el.remove())
+    })
+    .catch(() => {})
+  log('dismissed onboarding tour')
+}
+
 // Expand the collapsed "Show more" settings panel if present (AI-label &
 // visibility controls sometimes live behind it). Best-effort; no-op if absent.
 async function expandMoreSettings(page, log) {
@@ -157,6 +188,7 @@ export async function uploadClip(
     log('wait for caption editor (video processing)')
     const editor = await firstVisible(page, CAPTION_SELECTORS, 90000)
     await page.waitForTimeout(1500)
+    await dismissTour(page, log)
 
     if (caption) {
       log('write caption')
@@ -171,6 +203,7 @@ export async function uploadClip(
       await page.waitForTimeout(1500)
     }
 
+    if (visibility || aiLabel) await dismissTour(page, log)
     if (visibility) await setVisibility(page, visibility, log)
     if (aiLabel) await enableAiLabel(page, log)
 
