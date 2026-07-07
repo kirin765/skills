@@ -122,6 +122,9 @@ async function dismissCoachmarks(page) {
 // "Show more" whenever it's visible. Returns true once the target is visible.
 async function revealControl(page, target, timeout = 15000) {
   const deadline = Date.now() + timeout
+  // "Show more" is a plain clickable text node, not a <button> — match by text.
+  const showMore = () =>
+    page.locator('text=/^\\s*(Show more|더 보기|더보기)\\s*$/i').first()
   while (Date.now() < deadline) {
     if (
       (await target.count().catch(() => 0)) &&
@@ -129,13 +132,10 @@ async function revealControl(page, target, timeout = 15000) {
     ) {
       return true
     }
-    for (const sel of ['button:has-text("Show more")', 'button:has-text("더 보기")']) {
-      const b = page.locator(sel).first()
-      if ((await b.count().catch(() => 0)) && (await b.isVisible().catch(() => false))) {
-        await b.click().catch(() => {})
-        await page.waitForTimeout(700)
-        break
-      }
+    const sm = showMore()
+    if ((await sm.count().catch(() => 0)) && (await sm.isVisible().catch(() => false))) {
+      await sm.click().catch(() => {})
+      await page.waitForTimeout(700)
     }
     await page.waitForTimeout(600)
   }
