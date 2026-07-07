@@ -117,33 +117,38 @@ async function dismissCoachmarks(page) {
   }
 }
 
-// Expand the collapsed "Show more" settings panel if present (AI-label &
-// visibility controls sometimes live behind it). Best-effort; no-op if absent.
-async function expandMoreSettings(page, log) {
-  const triggers = [
-    'text=/^\\s*(더 보기|더보기|Show more)\\s*$/',
-    'button:has-text("더 보기")',
-    'button:has-text("Show more")',
-  ]
-  for (const sel of triggers) {
-    const loc = page.locator(sel).first()
-    if (await loc.count().catch(() => 0) && (await loc.isVisible().catch(() => false))) {
-      await loc.click().catch(() => {})
-      log('expanded more-settings panel')
-      await page.waitForTimeout(800)
-      return
+// AI-label & visibility controls live behind a collapsed "Show more" panel that
+// renders with variable timing. Poll until the wanted control appears, clicking
+// "Show more" whenever it's visible. Returns true once the target is visible.
+async function revealControl(page, target, timeout = 15000) {
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    if (
+      (await target.count().catch(() => 0)) &&
+      (await target.first().isVisible().catch(() => false))
+    ) {
+      return true
     }
+    for (const sel of ['button:has-text("Show more")', 'button:has-text("더 보기")']) {
+      const b = page.locator(sel).first()
+      if ((await b.count().catch(() => 0)) && (await b.isVisible().catch(() => false))) {
+        await b.click().catch(() => {})
+        await page.waitForTimeout(700)
+        break
+      }
+    }
+    await page.waitForTimeout(600)
   }
+  return false
 }
 
 // Turn ON the "AI-generated content" disclosure. Idempotent — the switch state
 // lives on a child [aria-checked] div (the <input role=switch> is aria-hidden),
 // so we read that and only click when it's off.
 async function enableAiLabel(page, log) {
-  await expandMoreSettings(page, log)
   await dismissCoachmarks(page)
   const container = page.locator('[data-e2e="aigc_container"]').first()
-  if (!(await container.count().catch(() => 0))) {
+  if (!(await revealControl(page, container))) {
     throw new Error('AI-label control not found — verify selectors with --dry-run')
   }
   const readState = () =>
@@ -170,13 +175,12 @@ const VISIBILITY_OPTION = {
 async function setVisibility(page, visibility, log) {
   const target = VISIBILITY_OPTION[visibility]
   if (!target) throw new Error(`unknown visibility: ${visibility}`)
-  await expandMoreSettings(page, log)
   await dismissCoachmarks(page)
   const opener = page
     .locator('[role="combobox"]')
     .filter({ hasText: /Everyone|Friends|Only you|Followers/i })
     .first()
-  if (!(await opener.count().catch(() => 0))) {
+  if (!(await revealControl(page, opener))) {
     throw new Error('visibility control not found — verify selectors with --dry-run')
   }
   await opener.click()
