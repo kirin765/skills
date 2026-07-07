@@ -160,6 +160,12 @@ async function enableAiLabel(page, log) {
   const sw = container.locator('.Switch__root, [data-layout="switch-root"]').first()
   await sw.click()
   await page.waitForTimeout(600)
+  // Toggling AIGC opens a "Labeling AI-generated content" confirmation modal.
+  const turnOn = page.locator('button:has-text("Turn on"), button:has-text("사용")').first()
+  if ((await turnOn.count().catch(() => 0)) && (await turnOn.isVisible().catch(() => false))) {
+    await turnOn.click()
+    await page.waitForTimeout(600)
+  }
   if ((await readState()) !== 'true') throw new Error('AI-label toggle did not switch ON')
   log('AI-label set ON')
 }
