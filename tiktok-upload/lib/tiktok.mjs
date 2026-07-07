@@ -264,6 +264,11 @@ export async function uploadClip(
     await page.waitForTimeout(8000)
     log('posted (post-click settle done)')
     return { ok: true, url: page.url() }
+  } catch (err) {
+    const shot = `/tmp/tiktok-error-${Date.now()}.png`
+    await page.screenshot({ path: shot, fullPage: true }).catch(() => {})
+    log(`ERROR screenshot: ${shot}`)
+    throw err
   } finally {
     await page.waitForTimeout(500)
     await page.close().catch(() => {})
