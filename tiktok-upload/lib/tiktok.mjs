@@ -1,16 +1,26 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
 const UPLOAD_URL = 'https://www.tiktok.com/tiktokstudio/upload'
 
-// Per-account persistent Chromium profile. Log in ONCE (login.mjs), then
-// upload.mjs drives the same profile unattended. No dependency on the user's
-// own Chrome or port 9222.
+// Prefer the shared CDP registry (~/.cdp-profiles) when it names this account;
+// fall back to the legacy per-account dir so the skill still works standalone.
+function _registryDir(key) {
+  try {
+    const reg = JSON.parse(readFileSync(join(homedir(), '.cdp-profiles/registry.json'), 'utf8'))
+    const e = reg[key]
+    if (!e) return null
+    return e.profileDir.startsWith('~') ? join(homedir(), e.profileDir.slice(1).replace(/^[/\\]/, '')) : e.profileDir
+  } catch {
+    return null
+  }
+}
+
 export function profileDir(account) {
   if (!account) throw new Error('account required')
-  return join(homedir(), '.tiktok-upload', account)
+  return _registryDir(`tiktok-${account}`) ?? join(homedir(), '.tiktok-upload', account)
 }
 
 export async function openContext(account, { headless = false } = {}) {
