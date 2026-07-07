@@ -84,6 +84,17 @@ async function dismissTour(page, log) {
   log('dismissed onboarding tour')
 }
 
+// Separate coachmark tooltips ("Got it" / 확인) can also overlay controls.
+async function dismissCoachmarks(page) {
+  for (const sel of ['button:has-text("Got it")', 'button:has-text("확인")']) {
+    const b = page.locator(sel).first()
+    if ((await b.count().catch(() => 0)) && (await b.isVisible().catch(() => false))) {
+      await b.click().catch(() => {})
+      await page.waitForTimeout(300)
+    }
+  }
+}
+
 // Expand the collapsed "Show more" settings panel if present (AI-label &
 // visibility controls sometimes live behind it). Best-effort; no-op if absent.
 async function expandMoreSettings(page, log) {
