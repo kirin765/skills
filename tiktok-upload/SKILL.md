@@ -43,14 +43,19 @@ node upload.mjs --account <name> --video /path/clip.mp4 --caption "본문 #해�
 
 TikTok 게시는 되돌리기 어렵다. 실전 게시 전:
 
-1. **처음 쓰는 계정/옵션 조합이면 `--dry-run` 먼저.** 특히 `--ai-label`·`--visibility` 셀렉터는 TikTok DOM 변화에 취약 — dry-run 스크린샷으로 토글/드롭다운이 의도대로 걸렸는지 눈으로 확인한 뒤 실게시.
+1. **UI가 바뀐 것 같거나 처음 쓰는 옵션 조합이면 `--dry-run` 먼저.** dry-run은 Post 클릭 직전 멈추고 전체 스크린샷을 남긴다 — 토글/드롭다운이 의도대로 걸렸는지 눈으로 확인 후 실게시.
 2. 대량/반복 게시는 사용자 확인 후. 봇 트래픽처럼 몰아치지 말 것.
 3. 캡션·해시태그·공개범위를 사용자와 한 번 맞추고 게시.
 
-## 셀렉터 안정성 노트
+## 셀렉터 안정성 노트 (2026-07-07 라이브 검증 완료)
 
-- **파일 첨부·캡션·게시(1·2단계)** — game-shorts에서 검증된 로직. 안정적.
-- **AI라벨·공개범위(3·4단계)** — text-anchored 셀렉터(한/영 폴백) + `role=switch`/`role=option`. TikTok Studio UI가 바뀌면 여기가 먼저 깨진다. 실패 시 에러 메시지가 "verify selectors with --dry-run"을 안내하니, dry-run 스크린샷으로 실제 DOM을 보고 `lib/tiktok.mjs`의 `enableAiLabel`/`setVisibility` 셀렉터를 조정.
+라이브 TikTok Studio(**영어 UI**, aigroove99)에서 dry-run으로 전 단계 검증됨. 처리한 실제 quirk들:
+
+- **온보딩 투어** — 신규 프로파일은 `react-joyride` 오버레이가 클릭을 가로챈다. `dismissTour`가 skip 후 포털 DOM 제거; 캡션 클릭은 `focusEditor`가 실패 시 오버레이 강제 제거 + force-click으로 복구.
+- **AI라벨 확인 모달** — "AI-generated content" 스위치를 켜면 "Labeling AI-generated content" 모달이 뜬다. `enableAiLabel`이 **"Turn on"** 을 눌러야 실제 ON. 상태는 `[data-e2e="aigc_container"]` 내부 `[aria-checked]`로 확인(멱등).
+- **접힌 고급설정** — AI라벨은 "Show more" 아래 접혀 있다(공개범위는 항상 노출). `revealControl`이 컨트롤이 보일 때까지 "Show more"를 텍스트로 찾아 폴링 클릭.
+- **공개범위** — `button[role="combobox"]`(현재값 표시, 별도 라벨 없음) → 열면 Everyone/Friends/Only you.
+- **실패 시 자동 스크린샷** — 업로드 중 예외가 나면 `/tmp/tiktok-error-*.png`를 남긴다. UI가 또 바뀌면 이 스크린샷으로 `lib/tiktok.mjs` 셀렉터를 조정.
 - 로그인 만료(`sessionid` 쿠키 소실) 시 `login.mjs` 재실행.
 
 ## 이 스킬이 하지 않는 것
