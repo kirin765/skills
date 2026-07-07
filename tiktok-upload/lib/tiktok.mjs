@@ -114,69 +114,68 @@ async function expandMoreSettings(page, log) {
   }
 }
 
-// Turn ON the "AI-generated content" disclosure. Idempotent — reads the switch
-// state and only clicks when it's off. Selectors are text-anchored with
-// aria-fallbacks because TikTok's class names are build hashes.
+// Turn ON the "AI-generated content" disclosure. Idempotent — the switch state
+// lives on a child [aria-checked] div (the <input role=switch> is aria-hidden),
+// so we read that and only click when it's off.
 async function enableAiLabel(page, log) {
   await expandMoreSettings(page, log)
-  const labelText = page
-    .locator('text=/AI(-| )?생성 콘텐츠|AI-generated content|AI generated content/i')
-    .first()
-  if (!(await labelText.count().catch(() => 0))) {
+  await dismissCoachmarks(page)
+  const container = page.locator('[data-e2e="aigc_container"]').first()
+  if (!(await container.count().catch(() => 0))) {
     throw new Error('AI-label control not found — verify selectors with --dry-run')
   }
-  // The switch is a sibling/nearby role=switch within the same setting row.
-  const row = labelText.locator('xpath=ancestor-or-self::*[.//*[@role="switch"]][1]')
-  const sw = (await row.count().catch(() => 0))
-    ? row.locator('[role="switch"]').first()
-    : page.locator('[role="switch"]').first()
-  await sw.waitFor({ state: 'visible', timeout: 10000 })
-  const checked = await sw.getAttribute('aria-checked').catch(() => null)
-  if (checked === 'true') {
+  const readState = () =>
+    container.locator('[aria-checked]').first().getAttribute('aria-checked').catch(() => null)
+  if ((await readState()) === 'true') {
     log('AI-label already ON')
     return
   }
+  const sw = container.locator('.Switch__root, [data-layout="switch-root"]').first()
   await sw.click()
   await page.waitForTimeout(600)
-  const after = await sw.getAttribute('aria-checked').catch(() => null)
-  if (after !== 'true') throw new Error('AI-label toggle did not switch ON')
+  if ((await readState()) !== 'true') throw new Error('AI-label toggle did not switch ON')
   log('AI-label set ON')
 }
 
-// Select who can watch. TikTok uses a custom dropdown, not a native <select>.
-const VISIBILITY_LABELS = {
-  public: ['모두', 'Everyone', 'Public'],
-  friends: ['친구', 'Friends'],
-  private: ['나만', 'Only you', 'Private'],
+// Select who can watch. The trigger is a role=combobox button whose inner text
+// is the current value (Everyone/Friends/Only you) — there is no separate label.
+const VISIBILITY_OPTION = {
+  public: 'Everyone',
+  friends: 'Friends',
+  private: 'Only you',
 }
 
 async function setVisibility(page, visibility, log) {
-  const labels = VISIBILITY_LABELS[visibility]
-  if (!labels) throw new Error(`unknown visibility: ${visibility}`)
+  const target = VISIBILITY_OPTION[visibility]
+  if (!target) throw new Error(`unknown visibility: ${visibility}`)
   await expandMoreSettings(page, log)
+  await dismissCoachmarks(page)
   const opener = page
-    .locator('text=/이 동영상을 볼 수 있는 사람|Who can watch this video/i')
+    .locator('[role="combobox"]')
+    .filter({ hasText: /Everyone|Friends|Only you|Followers/i })
     .first()
   if (!(await opener.count().catch(() => 0))) {
     throw new Error('visibility control not found — verify selectors with --dry-run')
   }
-  // Open the dropdown: click the control row's combobox/button.
-  const control = opener.locator(
-    'xpath=ancestor-or-self::*[.//*[@role="combobox" or @role="button"] or self::button][1]'
-  )
-  const clickTarget = (await control.count().catch(() => 0)) ? control.first() : opener
-  await clickTarget.click().catch(() => opener.click())
-  await page.waitForTimeout(600)
-  for (const text of labels) {
-    const opt = page.locator(`[role="option"]:has-text("${text}"), li:has-text("${text}")`).first()
-    if (await opt.count().catch(() => 0) && (await opt.isVisible().catch(() => false))) {
-      await opt.click()
-      await page.waitForTimeout(400)
-      log(`visibility set: ${visibility}`)
-      return
-    }
+  await opener.click()
+  await page.waitForTimeout(700)
+  // Options live in a popup dialog/listbox; role=option excludes the trigger.
+  const opt = page
+    .locator('[role="option"], [role="menuitemradio"], [role="menuitem"]')
+    .filter({ hasText: new RegExp(target, 'i') })
+    .first()
+  if ((await opt.count().catch(() => 0)) && (await opt.isVisible().catch(() => false))) {
+    await opt.click()
+  } else {
+    // fallback: click the label text inside any open dialog/listbox
+    const alt = page
+      .locator('[role="dialog"], [role="listbox"]')
+      .locator(`text=/${target}/i`)
+      .first()
+    await alt.click()
   }
-  throw new Error(`visibility option not found for ${visibility} — verify with --dry-run`)
+  await page.waitForTimeout(400)
+  log(`visibility set: ${visibility}`)
 }
 
 // Upload one clip. dryRun stops just before the final Post click and screenshots.
@@ -200,6 +199,7 @@ export async function uploadClip(
     const editor = await firstVisible(page, CAPTION_SELECTORS, 90000)
     await page.waitForTimeout(1500)
     await dismissTour(page, log)
+    await dismissCoachmarks(page)
 
     if (caption) {
       log('write caption')
