@@ -84,6 +84,28 @@ async function dismissTour(page, log) {
   log('dismissed onboarding tour')
 }
 
+// Click the caption editor resiliently — onboarding overlays (joyride, spotlight)
+// intermittently intercept the click on fresh profiles. Retry with a hard strip
+// + force-click before giving up.
+async function focusEditor(page, editor) {
+  try {
+    await editor.click({ timeout: 8000 })
+    return
+  } catch {
+    await dismissTour(page, () => {})
+    await page
+      .evaluate(() =>
+        document
+          .querySelectorAll(
+            '#react-joyride-portal, .react-joyride__overlay, .react-joyride__spotlight, [data-test-id="overlay"]'
+          )
+          .forEach((el) => el.remove())
+      )
+      .catch(() => {})
+    await editor.click({ force: true })
+  }
+}
+
 // Separate coachmark tooltips ("Got it" / 확인) can also overlay controls.
 async function dismissCoachmarks(page) {
   for (const sel of ['button:has-text("Got it")', 'button:has-text("확인")']) {
@@ -199,11 +221,10 @@ export async function uploadClip(
     const editor = await firstVisible(page, CAPTION_SELECTORS, 90000)
     await page.waitForTimeout(1500)
     await dismissTour(page, log)
-    await dismissCoachmarks(page)
 
     if (caption) {
       log('write caption')
-      await editor.click()
+      await focusEditor(page, editor)
       await page.keyboard.press('ControlOrMeta+A')
       await page.keyboard.press('Backspace')
       for (const line of caption.split('\n')) {
