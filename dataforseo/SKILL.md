@@ -23,6 +23,10 @@ Creds in `.env` (`DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD`) — gitignored.
   `balance` works before verification).
 - **Balance must be funded.** Each call costs money (see cost table). Check with
   `dfs.py balance`.
+- **No separate "App Data" setup.** DataForSEO Labs (incl. the Play `app-keywords` /
+  `app-competitors` endpoints) is not a separate product, subscription, or dashboard
+  toggle — it's the same account + login/password, just different endpoint paths, and
+  the commands below already call them. There is nothing extra to enable.
 
 ## Usage
 
@@ -45,10 +49,10 @@ or a raw numeric location_code.
 | command | endpoint | returns |
 |---|---|---|
 | `volume` | `keywords_data/google_ads/search_volume/live` | monthly volume, competition, competition_index, CPC (KP-equivalent, per-country) |
-| `app-keywords` | `dataforseo_labs/google_play/keywords_for_app/live` | keywords a Play app ranks for + volume/difficulty |
+| `app-keywords` | `dataforseo_labs/google/keywords_for_app/live` | keywords a Play app ranks for + volume/difficulty |
 | `suggest` | `dataforseo_labs/google/keyword_suggestions/live` | keyword ideas + volume |
 | `difficulty` | `dataforseo_labs/google/bulk_keyword_difficulty/live` | keyword difficulty score (0–100) |
-| `app-competitors` | `dataforseo_labs/google_play/app_competitors/live` | competing Play apps by keyword overlap |
+| `app-competitors` | `dataforseo_labs/google/app_competitors/live` | competing Play apps by keyword overlap |
 
 ## Cost (approx, per DataForSEO pricing)
 Google Play Labs endpoints: ~$0.01/task + $0.0001/returned item. Google Ads
