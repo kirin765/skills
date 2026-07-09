@@ -1,21 +1,15 @@
 ---
 name: brain-capture
 description: >-
-  Capture what happened in the CURRENT session into the user's personal "brain"
-  knowledge wiki at ~/projects/misc/brain, following that repo's own AGENTS.md
-  workflow (raw → wiki/sources → wiki/topics → reports, plus the
-  memory / action-tracker / decision-log / log state files and ingest:/query:/lint:
-  commits). Use this skill whenever the user wants to save, register, file,
-  archive, or organize the current session's findings, decisions, research, or
-  answers into brain — phrases like "brain에 정리해줘", "brain에 등록",
-  "세션 brain에 정리", "오늘 작업 brain에 기록", "save this to brain",
-  "brain 업데이트", "brain capture", or any end-of-session request to persist
-  durable knowledge into the brain wiki. It runs from ANY project or session,
-  not only inside the brain repo, and always targets the brain repo by absolute
-  path. Default flow: propose what will be written and where, get the user's
-  approval, then write the files and commit locally. Do NOT use it for ordinary
-  code edits, for the lightweight ~/.claude file-based memory, or for throwaway
-  chat answers that aren't worth persisting.
+  Capture the CURRENT session's durable findings into the personal "brain"
+  knowledge wiki at ~/projects/misc/brain, following that repo's AGENTS.md
+  workflow (raw → wiki/sources → wiki/topics → reports, state files,
+  ingest:/query:/lint: commits). Trigger on "brain에 정리해줘/등록/기록",
+  "save this to brain", "brain 업데이트", "brain capture", or any
+  end-of-session request to persist knowledge. Runs from ANY project, always
+  targets brain by absolute path. Flow — propose what/where, get approval,
+  then write and commit locally. Not for ordinary code edits, the lightweight
+  ~/.claude file memory, or throwaway answers.
 ---
 
 # Brain Capture

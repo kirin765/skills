@@ -1,6 +1,6 @@
 ---
 name: naver-api
-description: Get real search-demand data from Naver APIs (DataLab 검색어트렌드, Web Search, Ads Keyword Tool, Shopping Insight) AND Google Trends. Use this skill whenever the user asks about keyword research, search trends, 검색량, 네이버 트렌드, 구글 트렌드, Google Trends, 검색어 트렌드, 키워드 분석, 쇼핑 인사이트, interest over time, related/rising queries, interest by region/country, or wants to compare keyword popularity — for the Korean market (Naver) or globally/cross-country (Google Trends), even if they don't name a specific API. Also trigger when building reports or analyses that would benefit from search-demand data, or when comparing how a term trends in Korea vs other countries.
+description: Real search-demand data from Naver APIs (DataLab 검색어트렌드, Web Search, Ads Keyword Tool, Shopping Insight) AND Google Trends. Trigger on keyword research, search trends, 검색량, 네이버/구글 트렌드, 키워드 분석, 쇼핑 인사이트, interest over time, related/rising queries, interest by region/country, keyword popularity comparison — Korean market (Naver) or global/cross-country (Google Trends) — and when a report or analysis would benefit from search-demand data.
 ---
 
 # Naver API Tools

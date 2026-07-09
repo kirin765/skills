@@ -1,6 +1,6 @@
 ---
 name: naver-mail
-description: Send and read email from a personal Naver mailbox (@naver.com) over SMTP and IMAP. Use this skill whenever the user wants to send an email, reply, or check/read/search their Naver inbox — e.g. "네이버 메일 보내줘", "네이버로 이메일 발송", "이 파일 메일로 보내줘", "받은편지함 확인해줘", "안 읽은 메일 있어?", "네이버 메일에서 결제 관련 메일 찾아줘", "send an email from my Naver account", "read my Naver inbox", "check unread mail". Trigger even when the user doesn't say "Naver" but clearly means their own @naver.com mailbox for personal email send/read. This is the personal mailbox skill (SMTP send + IMAP read) — NOT naver-api (search trends), naver-searchad (ads), or naver-commerce-api (store). For Gmail, use the GMAIL_* SMTP path instead, not this skill.
+description: Send and read email from the user's personal @naver.com mailbox over SMTP and IMAP. Trigger on "네이버 메일 보내줘", "이 파일 메일로 보내줘", "받은편지함 확인해줘", "안 읽은 메일 있어?", "메일에서 ~ 찾아줘", "send/read my Naver mail" — even without saying "Naver" when the personal mailbox is clearly meant. Distinct from naver-api (trends), naver-searchad (ads), naver-commerce-api (store); Gmail uses the GMAIL_* SMTP path, not this skill.
 ---
 
 # Naver Mail (SMTP send + IMAP read)

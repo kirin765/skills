@@ -1,6 +1,6 @@
 ---
 name: ai-image-generator
-description: Generate or edit images with Gemini and GPT image APIs using structured 5-part prompts (image type, subject, environment, camera specs, constraints). Use whenever the user asks to generate an image, create/edit a picture or graphic, needs a transparent-background icon or logo, wants a product/scene photo, or asks to refine an image across multiple turns. Covers model selection (Gemini for scenes/depth, GPT Image for transparent RGBA and text rendering), Python-based API calls (not curl), and vision-model QA of the output.
+description: Generate or edit images with Gemini and GPT image APIs using structured 5-part prompts. Trigger whenever the user asks to generate/edit an image, picture, graphic, transparent-background icon or logo, or product/scene photo, or refines an image across turns. Gemini for scenes/depth, GPT Image for transparent RGBA + text rendering; Python API calls (not curl); vision-model QA of output.
 ---
 
 # AI Image Generator Skill Summary

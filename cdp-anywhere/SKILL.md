@@ -1,6 +1,6 @@
 ---
 name: cdp-anywhere
-description: 범용 인증세션 브라우저 자동화 워크플로우. 사용자의 인증된 Chrome 세션을 그대로 빌려, 전용 스킬이 없는 임의 사이트(LinkedIn·Notion·GitHub·임의 SaaS·내부 어드민 등)에서 (a) 내부 JSON/GraphQL endpoint 로 데이터 수집, (b) DOM 스크랩, (c) 클릭·폼 채우기·네비게이션 같은 인터랙티브 자동화를 처리. **기본 엔진은 Claude in Chrome 확장(`mcp__Claude_in_Chrome__*`)** 이고, 응답 가로채기/인증 POST·GraphQL 리플레이가 꼭 필요할 때만 CDP+Playwright(포트 9222) 를 쓴다. 사용자가 "지금 로그인된 ~~ 에서 ~~ 긁어줘", "내 Chrome 세션으로 ~~ 자동화", "이 사이트에 로그인된 상태로 ~~", "CDP 로 ~~", "Playwright 로 ~~", "이 페이지 자동으로 채워줘", "Linkedin/Notion/Github/임의의-내부-서비스 에서 ~~" 같은 표현을 쓸 때 반드시 발동. 더 좁은 전용 스킬(x-cdp-search, reddit-cdp-coach, naver-cafe-scrape) 이 매칭되면 그쪽 우선; 그 외 사이트는 이 스킬. Default read-only — 쓰기 동작(게시·전송·결제·삭제) 은 사용자가 명시적으로 요청할 때만, 그것도 영향과 함께 한 번 확인받고 수행.
+description: 범용 인증세션 브라우저 자동화 — 전용 스킬이 없는 임의 사이트(LinkedIn·Notion·GitHub·SaaS·내부 어드민)에서 사용자의 로그인된 Chrome 세션으로 (a) 내부 JSON/GraphQL 데이터 수집, (b) DOM 스크랩, (c) 클릭·폼·네비게이션 자동화. 기본 엔진은 Claude in Chrome 확장(mcp__Claude_in_Chrome__*); 응답 가로채기·인증 POST/GraphQL 리플레이가 꼭 필요할 때만 CDP+Playwright(포트 9222). "지금 로그인된 ~에서 ~긁어줘", "내 Chrome 세션으로 자동화", "CDP/Playwright 로 ~", "이 페이지 자동으로 채워줘" 류 요청에 발동. 더 좁은 전용 스킬(x-cdp-search, reddit-cdp-coach, naver-cafe-scrape)이 매칭되면 그쪽 우선. Default read-only — 쓰기(게시·전송·결제·삭제)는 명시 요청 시에만, 영향 고지 후 한 번 확인받고 수행.
 ---
 
 # cdp-anywhere

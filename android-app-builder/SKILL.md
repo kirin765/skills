@@ -1,6 +1,6 @@
 ---
 name: android-app-builder
-description: 안드로이드 앱을 아이디어부터 Google Play Console 검토 제출까지 끝내는 단일 스킬. 새 앱 개발은 컨텍스트로 분기 — **게임**(탭/플래피/아케이드/러너/닷지)은 Phaser 4 + Vite + Capacitor로, **그 외 유틸/생산성 앱**은 네이티브 Kotlin으로 만든다. AdMob 수익화·스토어 에셋(폰 프레임+카피 스크린샷)·Play Console 등록·검토 제출까지 한 스킬에서 처리하고, 기존 앱 업데이트(새 버전 AAB·등록정보·그래픽 수정)와 읽기 전용 조회(리뷰·평점·트랙·versionCode·등록정보 현황)도 포함한다. 사용자가 "안드로이드 앱 만들자", "탭 게임/플래피 같은 거 만들어줘", "코틀린 앱 만들어서 플레이스토어까지", "Play Store에 올려줘", "새 버전 AAB 업로드", "스토어 등록정보 수정", "AdMob 광고 붙여줘", "내 앱 리뷰/평점/트랙 상태 봐줘" 같이 *안드로이드 앱 개발·게임 개발·Play Store 등록/업데이트/조회·앱 수익화* 중 무엇이든 말할 때 발동. 모든 dev 작업은 happylife2080100@gmail.com 계정 + GCP 프로젝트 claude-for-android로 통일. 단순 아이디어 검증만 원하면 stress-test-idea, 등록정보 카피 최적화만 원하면 aso-audit를 직접 쓴다. iOS·Swift·순수 웹앱·Unity·Godot는 이 스킬이 아니다.
+description: 안드로이드 앱을 아이디어부터 Google Play Console 검토 제출까지 끝내는 단일 스킬 — 게임(탭/플래피/아케이드/러너/닷지)은 Phaser 4 + Vite + Capacitor, 그 외 유틸/생산성 앱은 네이티브 Kotlin. AdMob 수익화, 스토어 에셋, Play Console 등록·검토 제출, 기존 앱 업데이트(새 버전 AAB·등록정보·그래픽), 읽기 전용 조회(리뷰·평점·트랙·versionCode)까지 포함. "안드로이드 앱/게임 만들자", "Play Store에 올려줘", "새 버전 AAB 업로드", "등록정보 수정", "AdMob 붙여줘", "내 앱 리뷰/트랙 봐줘" 등 안드로이드 앱 개발·Play Store 등록/업데이트/조회·수익화 요청 전부에 발동. dev 작업은 happylife2080100@gmail.com 계정 + GCP 프로젝트 claude-for-android 고정. 아이디어 검증만은 stress-test-idea, 등록정보 카피만은 aso-audit. iOS·순수 웹앱·Unity·Godot는 이 스킬이 아니다.
 ---
 
 # Android App Builder — 아이디어 → Play Console 검토 제출 (단일 스킬)
