@@ -19,6 +19,31 @@
 //   --body: 제목 매치 글의 본문도 받아 스니펫 포함. --deep: 모든 글 본문까지 grep(느림).
 
 const BASE = process.env.CDP_URL || 'http://localhost:9222';
+const IS_DEFAULT_CDP = !process.env.CDP_URL;
+
+// CDP 전용 Chrome(chrome-cdp-profile, 9222) 이 안 떠 있을 때 backup 으로 자동 기동한다.
+// 사용자의 평소 Chrome(Default 프로파일)은 별도 --user-data-dir 라 손대지 않는다.
+async function launchCdpChromeMacos() {
+  const os = await import('node:os');
+  const { spawn } = await import('node:child_process');
+  const path = await import('node:path');
+  const chromeBin = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  const profileDir = path.join(os.homedir(), 'chrome-cdp-profile');
+  try {
+    const child = spawn(chromeBin, [`--remote-debugging-port=9222`, `--user-data-dir=${profileDir}`], {
+      stdio: 'ignore', detached: true,
+    });
+    child.unref();
+  } catch (e) {
+    return { ok: false, msg: `CDP Chrome 기동 실패: ${e.message}` };
+  }
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try { await (await fetch(`${BASE}/json/version`)).json(); return { ok: true, msg: 'CDP Chrome 자동 기동 성공' }; }
+    catch {}
+  }
+  return { ok: false, msg: 'CDP Chrome 을 띄웠지만 15초 내 9222 응답 없음' };
+}
 
 // ---------- args ----------
 const A = process.argv.slice(2);
@@ -45,7 +70,23 @@ async function getProbe() {
   // CDP 살아있는지 + 쿠키 추출 + (필요시) club_id resolve
   let list;
   try { list = await (await fetch(`${BASE}/json`)).json(); }
-  catch (e) { console.error(`❌ CDP ${BASE} 미응답. Chrome 을 --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-cdp-profile" 로 띄우고 네이버 로그인하세요.`); process.exit(1); }
+  catch (e) {
+    if (IS_DEFAULT_CDP && process.platform === 'darwin') {
+      console.error('⏳ CDP 9222 미응답 — CDP 전용 Chrome(chrome-cdp-profile) 자동 기동 시도 중...');
+      const { ok, msg } = await launchCdpChromeMacos();
+      console.error((ok ? '✅ ' : '❌ ') + msg);
+      if (ok) {
+        try { list = await (await fetch(`${BASE}/json`)).json(); }
+        catch (e2) { console.error(`❌ 자동 기동 후에도 CDP ${BASE} 미응답: ${e2.message}`); process.exit(1); }
+      } else {
+        console.error(`Chrome 을 --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-cdp-profile" 로 직접 띄우고 네이버 로그인하세요.`);
+        process.exit(1);
+      }
+    } else {
+      console.error(`❌ CDP ${BASE} 미응답. Chrome 을 --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-cdp-profile" 로 띄우고 네이버 로그인하세요.`);
+      process.exit(1);
+    }
+  }
 
   let page = list.find(t => t.type === 'page');
   let tempTab = null;

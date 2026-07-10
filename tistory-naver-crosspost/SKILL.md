@@ -29,7 +29,7 @@ Before invoking the script:
 
 1. **Chrome with CDP on port 9222** is running. Naver Blog (`blog.naver.com/<id>` or their own) must already be logged in — there is no login automation for Naver. Tistory does NOT need to be pre-logged-in: if the session is logged out, the script drives the Kakao login click-through itself (see `ensureTistoryLogin`), as long as the target Kakao account has a saved profile card in this Chrome profile (i.e. the user has completed the password step at least once before).
    Probe: `curl -s http://localhost:9222/json/version` returns a JSON.
-   If it fails, ask the user to launch:
+   If it fails, `crosspost.mjs` now auto-launches the dedicated CDP Chrome (`chrome-cdp-profile`) as a backup and retries for up to 15s — it never touches the user's main/everyday Chrome window, which stays a separate profile. Only if that auto-launch also fails, ask the user to launch it manually:
    ```
    /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
      --remote-debugging-port=9222 \

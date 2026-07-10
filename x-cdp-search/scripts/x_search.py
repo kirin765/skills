@@ -171,6 +171,35 @@ def ensure_page_target(cdp_base: str = CDP) -> None:
         pass  # 실패해도 connect가 시도하고 보고한다
 
 
+def launch_cdp_chrome_macos() -> tuple[bool, str]:
+    """CDP 전용 Chrome(chrome-cdp-profile, 9222) 을 백그라운드로 자동 기동한다(backup).
+    사용자의 평소 Chrome(Default 프로파일)은 별도 --user-data-dir 라 손대지 않는다."""
+    import os
+    import subprocess
+    import time
+    import urllib.request
+
+    chrome_bin = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    profile_dir = os.path.expanduser("~/chrome-cdp-profile")
+    try:
+        subprocess.Popen(
+            [chrome_bin, "--remote-debugging-port=9222", f"--user-data-dir={profile_dir}"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        return False, f"CDP Chrome 기동 실패: {e}"
+
+    for _ in range(15):
+        time.sleep(1)
+        try:
+            urllib.request.urlopen("http://localhost:9222/json/version", timeout=3)
+            return True, "CDP Chrome 자동 기동 성공"
+        except Exception:
+            continue
+    return False, "CDP Chrome 을 띄웠지만 15초 내 9222 응답 없음"
+
+
 async def probe_cdp_and_login(context) -> tuple[bool, str]:
     """X 로그인 상태 확인. ct0 쿠키 존재 + auth_token 존재 검사."""
     cookies = await context.cookies("https://x.com")
@@ -312,14 +341,27 @@ async def main():
             browser = await p.chromium.connect_over_cdp(args.cdp)
         except Exception as e:
             print(f"❌ CDP {args.cdp} 연결 실패: {e}", file=sys.stderr)
-            print(
-                "→ 다음 명령으로 Chrome 띄우고 X 에 로그인 후 다시 시도하세요:"
-                "\n   /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome \\"
-                "\n     --remote-debugging-port=9222 \\"
-                '\n     --user-data-dir="$HOME/chrome-cdp-profile"',
-                file=sys.stderr,
-            )
-            sys.exit(1)
+            connected = False
+            if sys.platform == "darwin" and args.cdp == CDP:
+                print("⏳ CDP 전용 Chrome(chrome-cdp-profile) 자동 기동 시도 중...", file=sys.stderr)
+                launch_ok, launch_msg = launch_cdp_chrome_macos()
+                print(("✅ " if launch_ok else "❌ ") + launch_msg, file=sys.stderr)
+                if launch_ok:
+                    ensure_page_target(args.cdp)
+                    try:
+                        browser = await p.chromium.connect_over_cdp(args.cdp)
+                        connected = True
+                    except Exception as e2:
+                        print(f"❌ 자동 기동 후에도 CDP 연결 실패: {e2}", file=sys.stderr)
+            if not connected:
+                print(
+                    "→ 자동 기동도 실패(또는 macOS 아님) — 다음 명령으로 Chrome 띄우고 X 에 로그인 후 다시 시도하세요:"
+                    "\n   /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome \\"
+                    "\n     --remote-debugging-port=9222 \\"
+                    '\n     --user-data-dir="$HOME/chrome-cdp-profile"',
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
         context = browser.contexts[0] if browser.contexts else await browser.new_context()
 

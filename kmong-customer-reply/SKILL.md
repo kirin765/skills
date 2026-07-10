@@ -58,7 +58,7 @@ description: 크몽(kmong.com) 판매자 "봇메이커"의 고객 문의를 Clau
 ### 전제조건
 - 맥에서 Chrome이 `--remote-debugging-port=9222 --user-data-dir=~/chrome-cdp-profile` 로 떠 있고 **그 프로필이 크몽 로그인 상태**. (상주 launchd: `~/.remote-trigger` 참조. 폰-온리면 필수.)
 - 세션 cwd는 `~/projects/misc/brain` (Playwright가 여기서 resolve됨).
-- 9222가 없으면 스크립트가 `{"ok":false,"error":"no-cdp"}`를 반환 → 사용자에게 알리고 중단(폰이면 Telegram).
+- 9222가 없으면 `triage.mjs`/`send.mjs` 가 먼저 CDP 전용 Chrome(chrome-cdp-profile) 자동 기동을 시도한다(최대 15초, 맥 로컬 세션 전제 — 폰 원격 트리거도 같은 맥에서 실행되므로 동일하게 동작). 그래도 실패하면 `{"ok":false,"error":"no-cdp"}` 를 반환 → 사용자에게 알리고 중단(폰이면 Telegram).
 
 ### 1. 트리아지 (읽기 전용)
 ```

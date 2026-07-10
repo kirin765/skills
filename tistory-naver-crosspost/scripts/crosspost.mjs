@@ -53,12 +53,51 @@ if ((mode === "tistory" || mode === "both" || mode === "naver") && !TITLE) die("
 function die(msg) { console.error("crosspost: " + msg); process.exit(2); }
 
 // ---------- CDP connect ----------
+// CDP 전용 Chrome(chrome-cdp-profile, 9222) 이 안 떠 있을 때 backup 으로 자동 기동한다.
+// 사용자의 평소 Chrome(Default 프로파일)은 별도 --user-data-dir 라 손대지 않는다.
+async function launchCdpChromeMacos() {
+  const os = await import("node:os");
+  const { spawn } = await import("node:child_process");
+  const path = await import("node:path");
+  const chromeBin = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+  const profileDir = path.join(os.homedir(), "chrome-cdp-profile");
+  try {
+    const child = spawn(chromeBin, [`--remote-debugging-port=9222`, `--user-data-dir=${profileDir}`], {
+      stdio: "ignore", detached: true,
+    });
+    child.unref();
+  } catch (e) {
+    return { ok: false, msg: `CDP Chrome launch failed: ${e.message}` };
+  }
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try { await (await fetch("http://localhost:9222/json/version")).json(); return { ok: true, msg: "CDP Chrome auto-launched" }; }
+    catch {}
+  }
+  return { ok: false, msg: "launched CDP Chrome but 9222 still not responding after 15s" };
+}
+
 async function connect() {
   let v;
   try {
     v = await (await fetch("http://localhost:9222/json/version")).json();
   } catch {
-    die("Chrome CDP not reachable on http://localhost:9222 — start Chrome with --remote-debugging-port=9222");
+    if (process.platform === "darwin") {
+      console.error("⏳ CDP 9222 not reachable — attempting to auto-launch CDP Chrome (chrome-cdp-profile)...");
+      const { ok, msg } = await launchCdpChromeMacos();
+      console.error((ok ? "✅ " : "❌ ") + msg);
+      if (ok) {
+        try {
+          v = await (await fetch("http://localhost:9222/json/version")).json();
+        } catch (e2) {
+          die(`Chrome CDP still not reachable after auto-launch: ${e2.message}`);
+        }
+      } else {
+        die("Auto-launch failed — start Chrome manually with --remote-debugging-port=9222 --user-data-dir=\"$HOME/chrome-cdp-profile\"");
+      }
+    } else {
+      die("Chrome CDP not reachable on http://localhost:9222 — start Chrome with --remote-debugging-port=9222");
+    }
   }
   return chromium.connectOverCDP(v.webSocketDebuggerUrl);
 }

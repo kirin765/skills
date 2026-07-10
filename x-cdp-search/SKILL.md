@@ -103,7 +103,7 @@ python ~/.claude/skills/x-cdp-search/scripts/x_search.py \
 ## 트러블슈팅
 
 ### CDP 9222 미응답
-- Chrome 종료된 상태. 사용자에게 위 CDP 명령어 다시 실행 요청.
+- 스크립트가 자동으로 CDP Chrome(chrome-cdp-profile) 기동을 시도한다(최대 15초 대기). 그래도 실패하면 사용자에게 위 CDP 명령어 다시 실행 요청.
 
 ### "로그인 쿠키 부족"
 - 그 Chrome 창에서 X 에 다시 로그인. 종종 X 가 세션을 끊음.
