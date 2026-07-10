@@ -2,7 +2,28 @@
 
 다른 cdp-* 스킬 (x-cdp-search, reddit-cdp-coach, naver-cafe-scrape) 과 동일 프로파일 공유. 이미 띄워져 있으면 새로 띄울 필요 없음.
 
-## CDP 모드로 Chrome 띄우기
+## 이 머신의 Chrome 은 두 개 — 이름 붙여서 구분
+
+| | 메인 Chrome | CDP Chrome |
+|---|---|---|
+| 프로파일 | Default (평소 쓰는 창) | `$HOME/chrome-cdp-profile` (전용) |
+| 용도 | Engine A (Claude in Chrome 확장) | Engine B (CDP + Playwright) |
+| 포트 | 없음 | `--remote-debugging-port=9222` |
+| 판별 방법 | `list_connected_browsers` (확장 API) | `curl :9222/json/version` |
+
+**절대 프로세스 이름(`ps aux | grep "Google Chrome"`, `pgrep Chrome`)만으로 두 인스턴스를 구분하려 하지 말 것** — 둘 다 같은 `Google Chrome` 바이너리라 목록에 같이 뜬다. 메인 Chrome 이 실행 중이어도 CDP Chrome 은 안 떠 있을 수 있고, 반대도 마찬가지. Engine B 작업 전엔 항상 `:9222` 응답으로만 CDP Chrome 의 존재를 판단한다.
+
+## 자동 기동 (권장 — 먼저 시도)
+
+`scripts/probe.py` 는 CDP 가 미응답이면 **CDP Chrome 을 스스로 백그라운드로 띄우고** 최대 15초 재확인한다. 메인 Chrome 은 별도 `--user-data-dir` 라 손대지 않고 그대로 공존한다.
+
+```bash
+python3 ~/.claude/skills/cdp-anywhere/scripts/probe.py
+```
+
+이게 실패했을 때만(Chrome 설치 경로가 다르거나 권한 문제) 아래 수동 명령으로 사용자에게 직접 띄워달라고 요청한다.
+
+## CDP 모드로 Chrome 수동 띄우기
 
 ### macOS (Intel + Apple Silicon 공통)
 ```bash

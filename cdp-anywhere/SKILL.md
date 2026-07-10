@@ -69,15 +69,21 @@ description: 범용 인증세션 브라우저 자동화 — 전용 스킬이 없
 
 Engine A 로 안 되는 두 경우에만. 사전 조건·코드 스니펫은 references 참고.
 
+> **이 머신엔 항상 Chrome 이 두 개 있을 수 있다 — 절대 혼동하지 말 것.**
+> - **메인 Chrome** — 사용자가 평소 쓰는 창(Default 프로파일). Engine A(확장) 이 여기 붙는다. CDP 포트 없음. Engine B 작업에서 이 창은 신경 쓸 필요도, 건드릴 필요도 없다.
+> - **CDP Chrome** — `$HOME/chrome-cdp-profile` 전용 프로파일로 `--remote-debugging-port=9222` 로 뜬 것. Engine B 전용. 다른 cdp-* 스킬(x-cdp-search 등)과 공유하는 동일 프로파일.
+> - 둘을 구분하는 유일한 기준은 **`curl :9222` 응답 여부**다. `pgrep "Google Chrome"`/`ps aux | grep Chrome` 로 "떠 있나"를 판단하지 말 것 — 메인 Chrome 은 항상 떠 있을 수 있고, 그것과 CDP Chrome 이 떠 있는지는 무관하다.
+
 ### B 사전 조건
-1. **CDP 9222 응답** — `curl -s http://localhost:9222/json/version`. 실패면 [chrome-setup](references/chrome-setup.md) 명령으로 띄워달라고 요청.
+1. **CDP 9222 확보** — `python3 scripts/probe.py` 를 먼저 돌린다. 미응답이면 스크립트가 **CDP Chrome 을 자동으로 백그라운드 기동**하고(메인 Chrome 은 건드리지 않음) 최대 15초 재확인한다. 그래도 실패하면(Chrome 미설치 경로 다름, 권한 문제 등) 그때만 [chrome-setup](references/chrome-setup.md) 명령으로 사용자에게 직접 띄워달라고 요청 — 매번 먼저 물어보지 말고 자동 기동을 먼저 시도.
    ```bash
+   # 자동 기동이 실패했을 때만 사용자에게 요청할 수동 명령
    /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
      --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-cdp-profile"
    ```
-   > Chrome 148+ 는 탭 0개면 `connect_over_cdp` 가 깨진다 — 붙기 전 `PUT /json/new` 로 탭 하나를 미리 만들어라(`ensure_page_target` 패턴).
+   > Chrome 148+ 는 탭 0개면 `connect_over_cdp` 가 깨진다 — 붙기 전 `PUT /json/new` 로 탭 하나를 미리 만들어라(`ensure_page_target` 패턴, `probe.py` 가 자동 처리).
 2. **Playwright 설치** — `python3 -c "import playwright"` 또는 Node `playwright`.
-3. **대상 도메인 로그인** — `scripts/probe.py --host <도메인>` 으로 CDP·쿠키 확인. 추정 금지.
+3. **대상 도메인 로그인** — `scripts/probe.py --host <도메인>` 으로 CDP·쿠키 확인. 추정 금지. 쿠키 0개면 CDP Chrome 프로파일에 그 도메인 로그인이 안 된 것 — 메인 Chrome 에 로그인돼 있어도 소용없다(별도 프로파일이라 쿠키 비공유).
 
 ### B 작업
 - **API capture**: `page.on("request"/"response")` 로 도메인 + `application/json` 매칭, 첫 요청에서 URL 템플릿·헤더·payload 추출. 이후 `context.request.get/post(url, headers=...)` 로 cursor 페이지네이션.
@@ -129,7 +135,7 @@ Engine A 로 안 되는 두 경우에만. 사전 조건·코드 스니펫은 ref
 - **인터랙티브 셀렉터 깨짐** — text·role·aria-label 우선. CSS class 는 빌드 해시라 최후 수단.
 
 ### Engine B
-- **CDP 9222 미응답** — 위 명령으로 재기동. `lsof -i :9222` 로 프로세스 확인.
+- **CDP 9222 미응답** — `scripts/probe.py` 가 자동 기동을 시도한다(위 참고). 그래도 안 되면 `lsof -i :9222` 로 이미 다른 프로파일이 그 포트를 점유했는지 확인 후 [chrome-setup 트러블슈팅](references/chrome-setup.md#자주-겪는-문제) 참고. **메인 Chrome 이 떠 있다는 사실은 CDP 상태와 무관** — 그것만 보고 "Chrome 떠 있으니 됐다"고 판단하지 말 것.
 - **`connect_over_cdp` timeout / "context management not supported"** — 탭 0개 상태. `PUT /json/new` 로 탭 선생성 후 재연결.
 - **endpoint 캡처 실패** — 첫 요청 트리거 액션(스크롤/더보기) 이 실제 발생했는지 확인. SSR/RSC 면 JSON API 없음 → Engine A 의 DOM 스크랩으로. WS/SSE 는 `page.on("websocket")`.
 - **401/403** — 세션 만료. 도메인 새로고침 + 재로그인.
