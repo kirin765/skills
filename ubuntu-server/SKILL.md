@@ -35,6 +35,42 @@ rsync -av --exclude venv --exclude __pycache__ <로컬경로> ubuntu-server:<원
 
 단발성 소량 복사면 `scp <로컬> ubuntu-server:<원격>`도 된다.
 
+## 자동 전원 제어 (스마트플러그)
+
+서버 전원코드에 Tuya 스마트플러그가 물려 있고, BIOS는 **전원 인가 시 자동 부팅**
+(`Restore after AC Power Loss = Power On`)으로 설정돼 있다. 그래서 플러그 ON/OFF로
+서버를 켜고 끈다. **끌 때는 반드시 먼저 SSH로 정상 종료한 뒤 플러그를 끊는다**
+(하드 전원차단은 파일시스템 손상 위험).
+
+이 스킬로 서버 작업을 요청받으면, 서버가 꺼져 있을 수 있으니 **작업 전에 `server_up.sh`로
+켜고**, 작업이 끝나면 **`server_down.sh`로 정상 종료 후 플러그를 끈다.**
+
+```bash
+SK=~/.claude/skills/ubuntu-server/scripts
+
+# 켜기: 플러그 ON → BIOS 자동부팅 → SSH 뜰 때까지 대기 (이미 켜져 있으면 즉시 통과)
+bash "$SK/server_up.sh"
+
+# ...여기서 실제 작업(ssh/rsync)...
+
+# 끄기: ssh 'sudo poweroff' → halt 확인 → 플러그 OFF
+bash "$SK/server_down.sh"
+
+# 플러그 저수준 제어 (필요 시)
+"$SK/../venv/bin/python" "$SK/plug.py" status|on|off
+```
+
+주의:
+- **로컬 제어라 플러그와 같은 LAN(192.168.0.x)에서만 된다.** 집 밖(다른 네트워크)에서는
+  `plug.py`가 실패한다. 이땐 사용자에게 플러그를 앱으로 켜달라고 요청하거나, 서버가 이미
+  켜져 있다면 그냥 SSH로 진행한다.
+- 사용자가 명시적으로 "작업 끝나면 서버 꺼줘"라고 했거나, 세션이 서버 작업만을 위한 것일 때만
+  `server_down.sh`를 부른다. 애매하면 끄기 전에 확인한다 (전원 차단은 되돌리기 번거로움).
+- 기기 정보/키는 `scripts/plug_config.json`. local_key는 비밀값이다.
+
+Tuya 기기: `eb13e3eea6b53213c0uzma` @ `192.168.0.8`, 프로토콜 v3.5.
+최초 1회 local key 세팅은 `scripts/get_local_key.py <ACCESS_ID> <SECRET> <REGION>` 로 한다.
+
 ## 원칙
 
 - **비대화형 세션 주의**: 이 환경의 SSH는 비밀번호 입력을 대신 못 넣는다. 그래서 키 인증이
