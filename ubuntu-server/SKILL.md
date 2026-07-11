@@ -68,8 +68,10 @@ bash "$SK/server_down.sh"
   `server_down.sh`를 부른다. 애매하면 끄기 전에 확인한다 (전원 차단은 되돌리기 번거로움).
 - 기기 정보/키는 `scripts/plug_config.json`. local_key는 비밀값이다.
 
-Tuya 기기: `eb13e3eea6b53213c0uzma` @ `192.168.0.8`, 프로토콜 v3.5.
-최초 1회 local key 세팅은 `scripts/get_local_key.py <ACCESS_ID> <SECRET> <REGION>` 로 한다.
+Tuya 기기: `eba80b902e77c55e4dawrz` @ `192.168.0.8`, 프로토콜 v3.5, 스위치 DPS `1`.
+local key는 이미 `plug_config.json`에 세팅돼 있다. 재발급이 필요하면
+`scripts/get_local_key.py <ACCESS_ID> <SECRET> us` (한국 계정 = Western America DC = `us`).
+Tuya IoT 프로젝트는 무료판이라 DC 1개만 허용 — 반드시 **Western America** 하나만 활성화.
 
 ## 원칙
 
