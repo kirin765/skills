@@ -23,13 +23,13 @@ SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
           "https://www.googleapis.com/auth/youtube"]
 
 
-def client():
-    if not os.path.exists(TOKEN_PATH):
-        sys.exit(f"Missing {TOKEN_PATH} — run yt_auth.py first (one-time setup).")
-    creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
+def client(token_path):
+    if not os.path.exists(token_path):
+        sys.exit(f"Missing {token_path} — run yt_auth.py first (one-time setup).")
+    creds = Credentials.from_authorized_user_file(token_path, SCOPES)
     if creds.expired and creds.refresh_token:
         creds.refresh(Request())
-        with open(TOKEN_PATH, "w") as f:
+        with open(token_path, "w") as f:
             f.write(creds.to_json())
     return build("youtube", "v3", credentials=creds, cache_discovery=False)
 
@@ -47,6 +47,9 @@ def main():
     ap.add_argument("--thumbnail", help="PNG/JPEG under 2MB")
     ap.add_argument("--made-for-kids", action="store_true")
     ap.add_argument("--language", default="ko", help="defaultLanguage / defaultAudioLanguage")
+    ap.add_argument("--token", default=TOKEN_PATH,
+                    help="OAuth token file — the upload lands on THIS token's channel; "
+                         "pass the per-channel token explicitly when a project pins a channel")
     args = ap.parse_args()
 
     if not os.path.exists(args.video):
@@ -75,7 +78,7 @@ def main():
         },
     }
 
-    yt = client()
+    yt = client(os.path.expanduser(args.token))
     media = MediaFileUpload(args.video, chunksize=8 * 1024 * 1024, resumable=True)
     req = yt.videos().insert(part="snippet,status", body=body, media_body=media)
 

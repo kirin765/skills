@@ -16,7 +16,10 @@ Google 계정 귀속이라 OAuth 2.0 리프레시 토큰이 유일한 경로다.
 | GCP 프로젝트 | `claude-android-upload` (YouTube OAuth 전용; Play API는 claude-for-android로 분리) |
 | venv | `~/.config/youtube-upload/venv` |
 | 토큰 | `~/.config/youtube-upload/token.json` (yt_auth.py가 생성) |
+| 채널별 토큰 | `~/.config/youtube-upload/token.<채널>.json` — `yt_upload.py --token`으로 지정 (예: `token.history-d9t.json` = 삼십초 역사 @history30sec) |
 | 스크립트 | 이 스킬의 `scripts/yt_auth.py`, `scripts/yt_upload.py` |
+
+**⚠ 업로드는 토큰의 채널로 나간다.** `token.json`은 여러 프로젝트가 돌려쓰며 언제든 다른 계정으로 재발급돼 있을 수 있다(2026-07-11 실제 사고: toon-pilot EP.2가 사장부 채널로 오업로드). 프로젝트가 채널을 지정하고 있으면(프로젝트 CLAUDE.md 확인) **반드시 해당 채널 토큰을 `--token`으로 명시**하고, 채널 지정이 없으면 업로드 전에 `channels.list(mine=true)`로 현재 토큰의 채널명을 확인해 사용자에게 알린 뒤 진행한다.
 
 ## 업로드 워크플로우
 
@@ -30,8 +33,10 @@ Google 계정 귀속이라 OAuth 2.0 리프레시 토큰이 유일한 경로다.
    ~/.config/youtube-upload/venv/bin/python \
      ~/.claude/skills/youtube-upload/scripts/yt_upload.py \
      --video <path> --title "<제목>" --description-file /tmp/desc.txt \
-     --tags "태그1,태그2" --thumbnail <png> --privacy unlisted
+     --tags "태그1,태그2" --thumbnail <png> --privacy unlisted \
+     --token ~/.config/youtube-upload/token.<채널>.json
    ```
+   `--token` 생략 시 `token.json`(공용, 계정이 수시로 바뀜)이 쓰이므로 채널 지정 프로젝트에서는 생략 금지.
 4. **결과 보고** — 스크립트가 출력한 `https://youtu.be/<id>` URL을 사용자에게 전달.
    여러 편 업로드 시 표로 정리.
 
