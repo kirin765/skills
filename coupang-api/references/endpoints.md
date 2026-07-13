@@ -18,7 +18,7 @@
 | 상품 수정 | PUT | `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products` (전체 객체 PUT) |
 | 상품 삭제 | DELETE | `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/{sellerProductId}` |
 | 가격 변경 | PUT | `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/{vendorItemId}/prices/{price}` |
-| 재고 변경 | PUT | `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/{vendorItemId}/quantities/{quantity}` |
+| 재고 변경 | PUT (실측✅) | `/v2/providers/seller_api/apis/api/v1/marketplace/vendor-items/{vendorItemId}/quantities/{quantity}` (⚠️ `seller-products`가 아니라 `vendor-items` — `seller-products` 경로는 PRECONDITION_FAILED) |
 | 판매 재개 / 중지 | PUT | `.../seller-products/{vendorItemId}/sales/resume` · `.../sales/stop` |
 | 카테고리 추천 | POST | `/v2/providers/openapi/apis/api/v1/categorization/predict` (바디: 상품명 등) |
 | 카테고리 메타 조회 | GET (실측✅) | `/v2/providers/seller_api/apis/api/v1/marketplace/meta/category-related-metas/display-category-codes/{code}` (provider는 `seller_api` — `openapi` 아님. 응답 `data.attributes[]`에 `inputType`(SELECT/INPUT)·`inputValues`·`required` 포함) |
