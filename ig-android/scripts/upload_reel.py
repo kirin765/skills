@@ -17,9 +17,11 @@ IGW_DIR = Path.home() / "projects/misc/brain/bin/ig-prime"
 sys.path.insert(0, str(IGW_DIR))
 
 import uiautomator2 as u2  # noqa: E402
+from PIL import Image  # noqa: E402
 from igw import device, session  # noqa: E402
 
 CHECKPOINT_PHRASES = ["suspicious", "확인이 필요", "차단", "try again later", "we limit"]
+AI_TOGGLE_CX = 1445  # right-margin toggle, horizontal position fixed on IM-H031 (2000x1200)
 
 
 def sh(args: list[str]) -> str:
@@ -56,6 +58,36 @@ class Flow:
         if optional:
             return False
         self.stop(label, f"text={text!r} not found")
+
+    def _ai_toggle_is_on(self, cy: int) -> bool:
+        """State-read the 'Add AI label' toggle by pixel: ON = bright knob at the
+        right end of the track, OFF = dark gray track there. Robust to row shift."""
+        p = self.shots / "_ailabel_probe.png"
+        self.d.screenshot(str(p))
+        img = Image.open(p).convert("RGB")
+        w, h = img.size
+        vals = []
+        for x in (AI_TOGGLE_CX + 22, AI_TOGGLE_CX + 26, AI_TOGGLE_CX + 30):
+            for y in (cy - 2, cy, cy + 2):
+                if 0 <= x < w and 0 <= y < h:
+                    r, g, b = img.getpixel((x, y))
+                    vals.append((r + g + b) / 3)
+        return bool(vals) and (sum(vals) / len(vals)) > 165
+
+    def set_ai_label_on(self):
+        """Locate the AI-label row dynamically (it shifts when location chips show),
+        toggle to ON, and verify by pixel — never blindly click a fixed coordinate."""
+        if "Add AI label" not in self.d.dump_hierarchy():
+            self.stop("ai_label", "'Add AI label' row not visible — scroll and set manually")
+        lb = self.d(text="Add AI label").bounds()
+        cy = (lb[1] + lb[3]) // 2
+        for _ in range(3):
+            if self._ai_toggle_is_on(cy):
+                self.snap("ai_label_on")
+                return
+            self.d.click(AI_TOGGLE_CX, cy)
+            time.sleep(1.5)
+        self.stop("ai_label", "could not confirm 'Add AI label' ON after 3 toggles")
 
 
 def main() -> int:
@@ -163,25 +195,31 @@ def main() -> int:
     f.click_text("OK", "caption_ok")
     f.snap("caption_set")
 
-    # 8. AI label
+    # 8. AI label — set ON and verify (toggle resets on screen rotation / re-render)
     if args.ai_label:
-        if "Add AI label" in d.dump_hierarchy():
-            d.click(1445, 495)  # toggle (View, not Switch — coordinate verified)
-            time.sleep(2)
-            f.snap("ai_label_on")
-        else:
-            f.stop("ai_label", "'Add AI label' row not visible — scroll and set manually")
+        f.set_ai_label_on()
 
     if args.stop_before_share:
         f.snap("REHEARSAL_END")
         print("Rehearsal complete — stopped before share. Save draft or continue manually.")
         return 0
 
-    # 9. share (privacy-conservative on the Meta-AI original-audio modal)
-    f.click_text("Next", "final_next")
-    time.sleep(2)
-    if not f.click_text("Turn off and share", "share_modal", optional=True):
-        f.click_text("Share", "share_btn")
+    # 9. share — the share-settings screen's action button is 'Share' (there is NO
+    #    second 'Next' here). Re-verify AI label ON right before publishing, then Share.
+    if args.ai_label:
+        f.set_ai_label_on()
+    f.snap("pre_share")
+    if not d(text="Share").click_exists(timeout=8):
+        f.stop("share_btn", "'Share' button not found on share-settings screen")
+    time.sleep(4)
+    # post-share modals: Meta-AI original-audio → conservative 'Turn off and share';
+    # Threads 'Always share?' → 'Not now'. Dismiss whichever appears.
+    for _ in range(3):
+        if f.click_text("Turn off and share", "meta_audio_modal", optional=True):
+            continue
+        if f.click_text("Not now", "threads_modal", optional=True):
+            continue
+        break
     time.sleep(8)
     f.snap("published")
     device.sleep(d)
