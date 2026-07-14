@@ -60,6 +60,35 @@ bash "$SK/server_down.sh"
 "$SK/../venv/bin/python" "$SK/plug.py" status|on|off
 ```
 
+### `server_up.sh` 가 타임아웃할 때 (2026-07-15 실측)
+
+**함정: 플러그가 이미 ON이면 `plug on`은 no-op이다.** BIOS 자동부팅은 *AC 인가 전환* 시점에만
+걸리므로, 켜진 플러그에 다시 on을 보내도 아무 일도 안 일어난다. 실제로 서버가 "전원은 들어와
+있는데 Tailscale offline(1d)" 상태로 멈춰 `server_up.sh`가 180s 타임아웃한 사례가 있다.
+
+**전원을 끊기 전에 서버가 진짜 죽었는지부터 확인한다** (가동 중 차단 = 하드 전원차단):
+
+```bash
+# DPS 19 = cur_power(W×10), 18 = cur_current(mA), 20 = cur_voltage(V×10)
+~/.claude/skills/ubuntu-server/venv/bin/python - <<'EOF'
+import json; from pathlib import Path; import tinytuya
+cfg = json.loads((Path.home()/".claude/skills/ubuntu-server/scripts/plug_config.json").read_text())
+d = tinytuya.OutletDevice(cfg["device_id"], cfg["address"], cfg["local_key"])
+d.set_version(float(cfg["version"])); d.set_socketTimeout(5)
+dps = d.status()["dps"]; print(f'{dps.get("19",0)/10:.1f} W  switch={dps.get("1")}')
+EOF
+```
+
+판정: **정지 2~5W / 가동 중 100W대**(실측 102.4W). `plug.py status`의 on/off는 *플러그 스위치*
+상태일 뿐 서버 가동 여부가 아니다 — 반드시 W를 봐야 한다.
+
+- **W가 높다(가동 중)**: 전원 차단 금지. 네트워크 문제이므로 사용자에게 알리고 판단을 받는다.
+  Tailscale 피어 확인은 `/Applications/Tailscale.app/Contents/MacOS/Tailscale status`
+  (`tailscale` CLI는 PATH에 없다). `k-MS-7B89.local` mDNS 조회는 ISP DNS 와일드카드 때문에
+  엉뚱한 공인 IP(218.38.x.x)를 돌려주니 믿지 말 것. LAN 서브넷 스윕은 포트스캔으로 분류돼 차단된다.
+- **W가 0에 가깝다(정지)**: 플러그 OFF → 12s 대기 → ON 으로 AC 전환을 만들어 자동부팅시킨다.
+  복구 실측: 0W → 99.6W(t+24s) → SSH 응답(t+50s).
+
 주의:
 - **로컬 제어라 플러그와 같은 LAN(192.168.0.x)에서만 된다.** 집 밖(다른 네트워크)에서는
   `plug.py`가 실패한다. 이땐 사용자에게 플러그를 앱으로 켜달라고 요청하거나, 서버가 이미
