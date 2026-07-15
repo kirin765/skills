@@ -29,7 +29,6 @@ from PIL import Image  # noqa: E402
 from igw import device, session  # noqa: E402
 
 CHECKPOINT_PHRASES = ["suspicious", "확인이 필요", "차단", "try again later", "we limit"]
-AI_TOGGLE_CX = 1445  # right-margin toggle, horizontal position fixed on IM-H031 (2000x1200)
 
 
 def sh(args: list[str]) -> str:
