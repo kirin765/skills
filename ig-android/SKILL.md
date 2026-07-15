@@ -49,12 +49,14 @@ python3 scripts/upload_reel.py \
 1. **푸시**: `adb push <video> /sdcard/DCIM/Camera/<name>.mp4` + `MEDIA_SCANNER_SCAN_FILE` 브로드캐스트 (안 하면 IG 갤러리에 안 보임).
 2. **계정 검증**: IG 콜드 스타트 → interstitial dismiss → 프로필 탭(`tab_avatar`) → `active_handle` 일치 확인.
 3. **만들기**: `d(description="Create")` 클릭 → "New reel" 갤러리 (하단 모드가 REEL 인지 확인) → 방금 푸시한 영상 = Recents 최신 비디오 썸네일 클릭.
+   - ⚠️ **미게시 드래프트가 있으면 "Keep editing your draft?" 모달이 피커를 가린다**(2026-07-15 실측). 모달이 계층을 덮어 REEL 마커 탐지가 실패하므로 `reel_mode` 에서 멈춘 것처럼 보이지만 실제로는 모드가 정상이다. **"Start new video"** = 드래프트 저장 후 새로 시작(정답). "Keep editing" 은 남의 드래프트를 물고 가므로 절대 금지. 스크립트가 자동 처리한다.
 4. **에디터 진입 방해물**: "Level up your videos with Edits" 홍보 모달이 뜨면 `back` 으로 닫는다 (Get App 누르지 말 것).
 5. **오디오**: 하단 툴바 첫 아이콘(음표) → 피커에서 **Trending 탭** → 곡 선택 기준: 상승세(초록 화살표) + reels 수 + 영상 톤 매칭. 행 클릭 → 하단 미리듣기 바의 **→ 버튼**으로 적용 → "Choose the part you want" 클립 화면은 기본 구간으로 **Done** (text 셀렉터가 종종 늦게 잡히므로 우상단 좌표 폴백).
    - 원본 영상에 오디오가 없으면 볼륨 밸런스 조정 불필요 — 우리 렌더는 의도적으로 무음.
 6. **Next** → 공유 설정 화면. "Others can now download..." 모달은 **Continue**.
 7. **캡션**: "Write a caption" 필드 클릭 → `d.send_keys(캡션)` — 한국어+이모지+해시태그 정상 입력됨(2026-07-04 실증). 해시태그 자동완성 드롭다운이 떠도 무시하고 우상단 **OK**.
 8. **AI 라벨**: 소재에 AI 생성 실사가 들어갔다면 "Add AI label" 토글 ON — IG 정책 준수이자 평판 계정 보호. 우리 파이프라인(생성 이미지 기반 리빌)은 기본 ON.
+   - 상태 판독은 **계층의 `checked` 속성**으로 한다(2026-07-15 수정). IG 는 이 토글을 `Switch` 가 아니라 제네릭 `android.view.View` + `checkable="true" checked="true/false"` 로 렌더하므로 class 기반 조회는 못 찾는다. 구버전의 **픽셀 밝기 추정은 ON 을 OFF 로 오판해 토글을 3번 헛돌리고 멈췄다** — 실제로는 이미 ON 이었다. `_ai_toggle_is_on()` 은 "Add AI label" 행과 같은 y 에 있는 checkable 노드를 찾아 `checked` 를 읽는다.
 9. **Next** → 최종 확인. "Update on your original audio" (Meta AI 사용 동의) 모달은 **"Turn off and share"** — 프라이버시 보수 기본값.
 10. **검증**: 게시 후 릴 뷰어에 본인 릴(Insights/Boost 버튼 보임)이 뜨는지 + 프로필 릴 탭에서 확인. 스크린샷 증적 저장.
 
