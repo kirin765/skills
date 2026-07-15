@@ -8,6 +8,7 @@ human/agent can inspect the screenshot and resume manually.
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 import time
@@ -60,19 +61,27 @@ class Flow:
         self.stop(label, f"text={text!r} not found")
 
     def _ai_toggle_is_on(self, cy: int) -> bool:
-        """State-read the 'Add AI label' toggle by pixel: ON = bright knob at the
-        right end of the track, OFF = dark gray track there. Robust to row shift."""
-        p = self.shots / "_ailabel_probe.png"
-        self.d.screenshot(str(p))
-        img = Image.open(p).convert("RGB")
-        w, h = img.size
-        vals = []
-        for x in (AI_TOGGLE_CX + 22, AI_TOGGLE_CX + 26, AI_TOGGLE_CX + 30):
-            for y in (cy - 2, cy, cy + 2):
-                if 0 <= x < w and 0 <= y < h:
-                    r, g, b = img.getpixel((x, y))
-                    vals.append((r + g + b) / 3)
-        return bool(vals) and (sum(vals) / len(vals)) > 165
+        """State-read the 'Add AI label' toggle from the view hierarchy.
+
+        IG renders it as a generic android.view.View carrying checkable/checked —
+        not a Switch — so class-based lookups miss it. Pixel probing (the previous
+        approach) misread the ON state and burned toggles (2026-07-15). Match the
+        checkable node sitting on the AI-label row instead.
+        """
+        best, best_dist = None, 10 ** 9
+        for m in re.finditer(r'<node[^>]*checkable="true"[^>]*>', self.d.dump_hierarchy()):
+            s = m.group(0)
+            chk = re.search(r'checked="(true|false)"', s)
+            bnd = re.search(r'bounds="\[\d+,(\d+)\]\[\d+,(\d+)\]"', s)
+            if not (chk and bnd):
+                continue
+            node_cy = (int(bnd.group(1)) + int(bnd.group(2))) // 2
+            dist = abs(node_cy - cy)
+            if dist < best_dist:
+                best, best_dist = chk.group(1) == "true", dist
+        if best is None or best_dist > 60:   # 같은 행에서 못 찾음 → 판정 보류
+            return False
+        return best
 
     def set_ai_label_on(self):
         """Locate the AI-label row dynamically (it shifts when location chips show),
