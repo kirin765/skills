@@ -127,41 +127,55 @@ class Flow:
                   "'Map preview' location modal is up and would not dismiss — refusing to "
                   "publish rather than tag the account's real physical location")
 
-    def _ai_toggle_is_on(self, cy: int) -> bool:
-        """State-read the 'Add AI label' toggle from the view hierarchy.
+    def _ai_toggle(self, row_cy: int):
+        """The 'Add AI label' toggle → (is_on, cx, cy), or None when it can't be read.
 
-        IG renders it as a generic android.view.View carrying checkable/checked —
-        not a Switch — so class-based lookups miss it. Pixel probing (the previous
-        approach) misread the ON state and burned toggles (2026-07-15). Match the
-        checkable node sitting on the AI-label row instead.
+        IG renders it as a generic android.view.View carrying checkable/checked — not
+        a Switch — so class-based lookups miss it. Match the checkable node sitting on
+        the AI-label row and read `checked`.
+
+        None means "cannot tell", and the caller must NOT treat that as OFF. Both AI-label
+        failures so far came from guessing the state and acting on the guess: the pixel
+        probe read an already-ON toggle as OFF and burned 3 toggles (07-14), and its
+        replacement still returned False when it found nothing, sending the caller off to
+        blind-tap a hardcoded x. Return the node's own centre so nobody has to.
         """
         best, best_dist = None, 10 ** 9
         for m in re.finditer(r'<node[^>]*checkable="true"[^>]*>', self.d.dump_hierarchy()):
             s = m.group(0)
             chk = re.search(r'checked="(true|false)"', s)
-            bnd = re.search(r'bounds="\[\d+,(\d+)\]\[\d+,(\d+)\]"', s)
+            bnd = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', s)
             if not (chk and bnd):
                 continue
-            node_cy = (int(bnd.group(1)) + int(bnd.group(2))) // 2
-            dist = abs(node_cy - cy)
+            x1, y1, x2, y2 = map(int, bnd.groups())
+            dist = abs((y1 + y2) // 2 - row_cy)
             if dist < best_dist:
-                best, best_dist = chk.group(1) == "true", dist
-        if best is None or best_dist > 60:   # 같은 행에서 못 찾음 → 판정 보류
-            return False
-        return best
+                best_dist = dist
+                best = (chk.group(1) == "true", (x1 + x2) // 2, (y1 + y2) // 2)
+        return best if best and best_dist <= 60 else None
 
     def set_ai_label_on(self):
-        """Locate the AI-label row dynamically (it shifts when location chips show),
-        toggle to ON, and verify by pixel — never blindly click a fixed coordinate."""
+        """Assert 'Add AI label' ON by reading and clicking the real node.
+
+        Called twice — the row shifts when location chips appear, and the toggle resets
+        on re-render, screen rotation (07-09) and the location modal (07-06).
+        """
         if "Add AI label" not in self.d.dump_hierarchy():
             self.stop("ai_label", "'Add AI label' row not visible — scroll and set manually")
         lb = self.d(text="Add AI label").bounds()
-        cy = (lb[1] + lb[3]) // 2
+        row_cy = (lb[1] + lb[3]) // 2
         for _ in range(3):
-            if self._ai_toggle_is_on(cy):
+            t = self._ai_toggle(row_cy)
+            if t is None:
+                self.stop("ai_label",
+                          "no checkable node on the 'Add AI label' row — state unknown. "
+                          "Refusing to blind-tap: a wrong guess here turns the label OFF "
+                          "and publishes AI imagery unlabelled.")
+            is_on, cx, cy = t
+            if is_on:
                 self.snap("ai_label_on")
                 return
-            self.d.click(AI_TOGGLE_CX, cy)
+            self.d.click(cx, cy)
             time.sleep(1.5)
         self.stop("ai_label", "could not confirm 'Add AI label' ON after 3 toggles")
 
