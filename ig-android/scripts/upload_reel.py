@@ -316,20 +316,22 @@ def main() -> int:
     time.sleep(8)
     f.snap("shared")
 
-    # 10. prove it — a Share tap is not a publish. Upload+encode lags, so poll.
+    # 10. prove it — a Share tap is not a publish; the reel uploads in the background.
+    #     NEVER device.open_ig() here: that is app_start(stop=True) and force-stopping
+    #     IG mid-upload cancels the very publish we are trying to confirm. Navigate
+    #     in-app (nav-rail avatar) and give the upload real time.
     if before_posts is None:
         print("WARNING: no baseline post count — cannot prove publish", file=sys.stderr)
     else:
-        for _ in range(12):   # ~2 min
-            device.open_ig(d, session.PKG)
-            session.dismiss_interstitials(d, dry=False)
-            if d(resourceId=session.NAV_AVATAR).click_exists(timeout=8):
-                time.sleep(2.5)
-                now = post_count(d)
-                if now is not None and now > before_posts:
-                    print(f"posts after: {now} (was {before_posts})")
-                    break
-            time.sleep(10)
+        for _ in range(10):   # ~2.5 min of upload headroom
+            time.sleep(15)
+            if not d(resourceId=session.NAV_AVATAR).click_exists(timeout=6):
+                continue      # still on a post-share screen/modal — let it settle
+            time.sleep(3)
+            now = post_count(d)
+            if now is not None and now > before_posts:
+                print(f"posts after: {now} (was {before_posts})")
+                break
         else:
             f.stop("publish_unconfirmed",
                    f"post count never rose above {before_posts} — the reel may or may not "
