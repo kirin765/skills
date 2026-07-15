@@ -143,6 +143,12 @@ def main() -> int:
         f.stop("create_btn", "description='Create' not found")
     time.sleep(3)
     f.guard()
+    # 미게시 드래프트가 있으면 "Keep editing your draft?" 모달이 피커를 가린다(2026-07-15 실측).
+    # 'Start new video' = 드래프트 저장 후 새로 시작. 'Keep editing'은 남의 드래프트를 물고 가므로 금지.
+    if "Keep editing your draft" in d.dump_hierarchy():
+        d(text="Start new video").click_exists(timeout=5)
+        time.sleep(2.5)
+        f.snap("draft_modal_dismissed")
     xml = d.dump_hierarchy()
     if "REEL" not in xml:
         f.stop("reel_mode", "'REEL' mode marker not in hierarchy — check picker state")
