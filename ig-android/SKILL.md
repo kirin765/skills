@@ -42,11 +42,25 @@ python3 scripts/upload_reel.py \
   --screenshot-dir /tmp/igshots
 ```
 
+**Exit 코드 — 호출자는 반드시 구분할 것 (2026-07-15 추가).**
+
+| 코드 | 뜻 | 재시도 |
+|---|---|---|
+| 0 | 게시 완료 + 포스트 수 증가까지 실측 | — |
+| 1 | UI 건드리기 전 거부(기기 오인·영상 없음·**푸시한 영상이 갤러리 최신 아님**) | ❌ |
+| 2 | **Share 누르기 전** 정지 — 게시 안 됨 | ✅ 콜드 스타트로 재시도 안전 |
+| 3 | **Share 누른 뒤** 정지 — 게시 여부 불명 | ❌ **절대 금지** — 여기서 재시도가 곧 중복 게시. 사람에게 에스컬레이션 |
+
+`bin/ig-autopost/autopost.py`가 이 규칙대로 exit 2만 3회까지 재시도한다. 대부분의 UI 정지는 일시적 모달이라 재시도로 그날을 살린다.
+
 스크립트는 각 단계에서 스크린샷을 남기고, 셀렉터가 안 잡히면 그 지점에서 멈추고 경로를 출력한다. **멈추면 스크린샷을 Read 로 보고 수동으로 그 단계만 이어간 뒤 재개하는 게 정석** — UI 드리프트는 정상이다.
 
 단계별 흐름 (스크립트가 하는 일 = 수동 폴백 시 그대로 따라가는 순서):
 
 1. **푸시**: `adb push <video> /sdcard/DCIM/Camera/<name>.mp4` + `MEDIA_SCANNER_SCAN_FILE` 브로드캐스트 (안 하면 IG 갤러리에 안 보임).
+   - ⚠️ **푸시 후 그 파일이 미디어스토어 최신인지 반드시 검증**(2026-07-15 추가, `wait_media_newest`). 갤러리 타일은 좌표로 찍으므로 **첫 타일에 있는 게 곧 게시되는 것**이다. 스캔이 늦으면 어제 릴이나 **다른 계정 릴**이 올라간다. 최신이 될 때까지 재스캔하고, 안 되면 exit 1로 거부한다.
+   - **파일명은 계정·날짜별로 고유하게.** 자동화가 양쪽 계정 모두 `reel.mp4`로 푸시하던 시절엔 두 번째 실행이 첫 번째를 덮어썼다 → `bin/ig-autopost/autopost.py`는 이제 `{account}-{YYYYMMDD}.mp4`를 쓴다.
+   - 조회는 `content query --projection _display_name:date_added` 후 **파이썬에서 정렬**한다. `--sort 'date_added DESC'`는 adb가 argv를 공백으로 이어붙이고 기기 셸이 다시 쪼개서 `Invalid token LIMIT`/토큰 깨짐으로 실패한다(2026-07-15 실측).
 2. **계정 검증**: IG 콜드 스타트 → interstitial dismiss → 프로필 탭(`tab_avatar`) → `active_handle` 일치 확인.
 3. **만들기**: `d(description="Create")` 클릭 → "New reel" 갤러리 (하단 모드가 REEL 인지 확인) → 방금 푸시한 영상 = Recents 최신 비디오 썸네일 클릭.
    - ⚠️ **미게시 드래프트가 있으면 "Keep editing your draft?" 모달이 피커를 가린다**(2026-07-15 실측). 모달이 계층을 덮어 REEL 마커 탐지가 실패하므로 `reel_mode` 에서 멈춘 것처럼 보이지만 실제로는 모드가 정상이다. **"Start new video"** = 드래프트 저장 후 새로 시작(정답). "Keep editing" 은 남의 드래프트를 물고 가므로 절대 금지. 스크립트가 자동 처리한다.
@@ -54,11 +68,12 @@ python3 scripts/upload_reel.py \
 5. **오디오**: 하단 툴바 첫 아이콘(음표) → 피커에서 **Trending 탭** → 곡 선택 기준: 상승세(초록 화살표) + reels 수 + 영상 톤 매칭. 행 클릭 → 하단 미리듣기 바의 **→ 버튼**으로 적용 → "Choose the part you want" 클립 화면은 기본 구간으로 **Done** (text 셀렉터가 종종 늦게 잡히므로 우상단 좌표 폴백).
    - 원본 영상에 오디오가 없으면 볼륨 밸런스 조정 불필요 — 우리 렌더는 의도적으로 무음.
 6. **Next** → 공유 설정 화면. "Others can now download..." 모달은 **Continue**.
+   - ⚠️ **위치태그 "Map preview" 모달 — 무인 실행 최대 위험**(07-06 D3·07-09 D5 2회 실측, 코드 반영은 2026-07-15). IG가 공유화면에서 **실제 물리적 위치**(실측: "IKEA 광명점")를 자동 제안·적용하고, 동시에 **AI 라벨을 OFF로 리셋**한다. 사람이 붙어 있을 땐 매번 Cancel로 막았지만 무인이면 사장님 실제 위치가 공개 계정에 박힌 채 게시된다. `dismiss_location()`이 Cancel → 사라졌는지 검증 → 안 사라지면 게시 거부(exit 2). **순서 고정: 위치 모달 해제 → AI 라벨 재확인 → Share.** 반대로 하면 라벨이 다시 OFF가 된다.
 7. **캡션**: "Write a caption" 필드 클릭 → `d.send_keys(캡션)` — 한국어+이모지+해시태그 정상 입력됨(2026-07-04 실증). 해시태그 자동완성 드롭다운이 떠도 무시하고 우상단 **OK**.
 8. **AI 라벨**: 소재에 AI 생성 실사가 들어갔다면 "Add AI label" 토글 ON — IG 정책 준수이자 평판 계정 보호. 우리 파이프라인(생성 이미지 기반 리빌)은 기본 ON.
    - 상태 판독은 **계층의 `checked` 속성**으로 한다(2026-07-15 수정). IG 는 이 토글을 `Switch` 가 아니라 제네릭 `android.view.View` + `checkable="true" checked="true/false"` 로 렌더하므로 class 기반 조회는 못 찾는다. 구버전의 **픽셀 밝기 추정은 ON 을 OFF 로 오판해 토글을 3번 헛돌리고 멈췄다** — 실제로는 이미 ON 이었다. `_ai_toggle_is_on()` 은 "Add AI label" 행과 같은 y 에 있는 checkable 노드를 찾아 `checked` 를 읽는다.
 9. **Next** → 최종 확인. "Update on your original audio" (Meta AI 사용 동의) 모달은 **"Turn off and share"** — 프라이버시 보수 기본값.
-10. **검증**: 게시 후 릴 뷰어에 본인 릴(Insights/Boost 버튼 보임)이 뜨는지 + 프로필 릴 탭에서 확인. 스크린샷 증적 저장.
+10. **검증**: **Share 탭 = 게시 아니다**(2026-07-15). 스크립트는 계정 검증 단계에서 프로필 포스트 수를 기준선으로 읽어두고, Share 후 최대 2분간 폴링해 **포스트 수가 실제로 늘었는지 확인**한 뒤에만 성공(exit 0)으로 보고한다. 안 늘면 exit 3 — 게시 여부 불명이므로 재시도 금지, 사람이 계정을 눈으로 확인해야 한다. 이 검증이 없던 시절엔 Share가 조용히 실패해도 "PUBLISHED"를 출력했고, 호출자는 그날을 게시한 걸로 기록했다.
 
 게시 완료 후: kill-test 트랙이면 **brain 트래커에 게시일 기록 + 판정일(게시일+14) 갱신**을 잊지 말 것 (`~/projects/misc/brain/wiki/action-tracker.md`, `query:` 커밋).
 

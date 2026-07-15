@@ -2,8 +2,15 @@
 """IG Reels upload on a real Android device (IM-H031) — verified flow 2026-07-04.
 
 Guarded: verifies device model + active IG account before acting; screenshots
-every step; stops (exit 2) at the exact step where a selector is missing so a
-human/agent can inspect the screenshot and resume manually.
+every step; stops at the exact step where a selector is missing so a human/agent
+can inspect the screenshot and resume manually.
+
+Exit codes — the caller MUST distinguish these before retrying:
+  0  published, and the post count was observed to increase
+  1  refused before touching the UI (wrong device, missing video, wrong video)
+  2  stopped BEFORE the Share tap — nothing was published, safe to retry
+  3  stopped AFTER the Share tap — publish state UNKNOWN, never blind-retry
+     (a retry here is how you double-post; escalate to a human instead)
 """
 from __future__ import annotations
 
@@ -29,6 +36,44 @@ def sh(args: list[str]) -> str:
     return subprocess.run(args, capture_output=True, text=True).stdout.strip()
 
 
+def media_newest(serial: str) -> str | None:
+    """Filename of the newest video in the media store — the tile the picker offers first.
+
+    Sorting is done here, not by `--sort`: adb joins argv with spaces and the device
+    shell re-splits, so 'date_added DESC' arrives as two tokens and the query throws.
+    """
+    out = sh(["adb", "-s", serial, "shell", "content", "query",
+              "--uri", "content://media/external/video/media",
+              "--projection", "_display_name:date_added"])
+    best, best_t = None, -1
+    for line in out.splitlines():
+        m = re.search(r"_display_name=(.+?), date_added=(\d+)", line)
+        if m and int(m.group(2)) > best_t:
+            best, best_t = m.group(1), int(m.group(2))
+    return best
+
+
+def wait_media_newest(serial: str, name: str, dest: str, tries: int = 8) -> bool:
+    """Block until OUR pushed file is the media store's newest video.
+
+    The picker is tapped by coordinate, so whatever sits in the first tile is what
+    gets published. If the scan lags, that tile is the PREVIOUS reel — which is how
+    you publish yesterday's video, or the other account's. Verify, never assume.
+    """
+    for _ in range(tries):
+        if media_newest(serial) == name:
+            return True
+        sh(["adb", "-s", serial, "shell", "am", "broadcast",
+            "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file://{dest}"])
+        time.sleep(2.5)
+    return False
+
+
+def post_count(d) -> int | None:
+    m = re.search(r'content-desc="(\d+)posts"', d.dump_hierarchy())
+    return int(m.group(1)) if m else None
+
+
 class Flow:
     def __init__(self, d, shots: Path):
         self.d = d
@@ -41,10 +86,10 @@ class Flow:
         self.d.screenshot(str(p))
         return p
 
-    def stop(self, label: str, why: str):
+    def stop(self, label: str, why: str, code: int = 2):
         p = self.snap(f"STOPPED_{label}")
         print(f"STOPPED at [{label}]: {why}\nscreenshot: {p}", file=sys.stderr)
-        sys.exit(2)
+        sys.exit(code)
 
     def guard(self):
         hit = device.checkpoint(self.d, CHECKPOINT_PHRASES)
@@ -59,6 +104,28 @@ class Flow:
         if optional:
             return False
         self.stop(label, f"text={text!r} not found")
+
+    def dismiss_location(self):
+        """Kill IG's auto-suggested location tag on the share screen.
+
+        IG pops a 'Map preview' modal there and pre-applies a REAL physical place
+        (2026-07-06: 'IKEA 광명점'; 2026-07-09 again on D5). Both times a human hit
+        Cancel; unattended it would publish the user's actual location to a public
+        account. It also resets the AI label OFF, so always re-assert that after.
+        """
+        xml = self.d.dump_hierarchy()
+        if "Map preview" not in xml:
+            return False
+        self.snap("location_modal")
+        for txt in ("Cancel", "Not now", "Dismiss"):
+            if self.d(text=txt).click_exists(timeout=4):
+                time.sleep(2)
+                if "Map preview" not in self.d.dump_hierarchy():
+                    self.snap("location_dismissed")
+                    return True
+        self.stop("location_modal",
+                  "'Map preview' location modal is up and would not dismiss — refusing to "
+                  "publish rather than tag the account's real physical location")
 
     def _ai_toggle_is_on(self, cy: int) -> bool:
         """State-read the 'Add AI label' toggle from the view hierarchy.
@@ -126,11 +193,16 @@ def main() -> int:
         print(f"wrong device: model={model!r} (expected IM-H031). Refusing.", file=sys.stderr)
         return 1
 
-    # 1. push + media scan
+    # 1. push + media scan — then PROVE our file is the tile the picker will hand us
     dest = f"/sdcard/DCIM/Camera/{video.name}"
     subprocess.run(["adb", "-s", args.serial, "push", str(video), dest], check=True)
     sh(["adb", "-s", args.serial, "shell", "am", "broadcast",
         "-a", "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", f"file://{dest}"])
+    if not wait_media_newest(args.serial, video.name, dest):
+        print(f"pushed {video.name} never became the media store's newest video "
+              f"(newest={media_newest(args.serial)!r}). Refusing — the picker would "
+              f"publish the wrong reel.", file=sys.stderr)
+        return 1
 
     d = u2.connect(args.serial)
     f = Flow(d, shots)
@@ -145,6 +217,8 @@ def main() -> int:
     handle = session.active_handle(d)
     if handle != args.account:
         f.stop("account_check", f"active handle {handle!r} != expected {args.account!r} — switch accounts manually")
+    before_posts = post_count(d)   # baseline for the post-share proof
+    print(f"posts before: {before_posts}")
     f.snap("account_verified")
 
     # 3. create → New reel gallery → newest video
@@ -197,6 +271,7 @@ def main() -> int:
     f.click_text("Next", "editor_next")
     time.sleep(2)
     f.click_text("Continue", "download_modal", optional=True)
+    f.dismiss_location()
     f.snap("share_settings")
 
     # 7. caption
@@ -220,12 +295,15 @@ def main() -> int:
         return 0
 
     # 9. share — the share-settings screen's action button is 'Share' (there is NO
-    #    second 'Next' here). Re-verify AI label ON right before publishing, then Share.
+    #    second 'Next' here). Order matters: the location modal resets the AI label,
+    #    so dismiss it FIRST, then re-assert the label, then Share.
+    f.dismiss_location()
     if args.ai_label:
         f.set_ai_label_on()
     f.snap("pre_share")
     if not d(text="Share").click_exists(timeout=8):
         f.stop("share_btn", "'Share' button not found on share-settings screen")
+    # ── everything past this point may already be live: stop(code=3), never retry ──
     time.sleep(4)
     # post-share modals: Meta-AI original-audio → conservative 'Turn off and share';
     # Threads 'Always share?' → 'Not now'. Dismiss whichever appears.
@@ -236,6 +314,26 @@ def main() -> int:
             continue
         break
     time.sleep(8)
+    f.snap("shared")
+
+    # 10. prove it — a Share tap is not a publish. Upload+encode lags, so poll.
+    if before_posts is None:
+        print("WARNING: no baseline post count — cannot prove publish", file=sys.stderr)
+    else:
+        for _ in range(12):   # ~2 min
+            device.open_ig(d, session.PKG)
+            session.dismiss_interstitials(d, dry=False)
+            if d(resourceId=session.NAV_AVATAR).click_exists(timeout=8):
+                time.sleep(2.5)
+                now = post_count(d)
+                if now is not None and now > before_posts:
+                    print(f"posts after: {now} (was {before_posts})")
+                    break
+            time.sleep(10)
+        else:
+            f.stop("publish_unconfirmed",
+                   f"post count never rose above {before_posts} — the reel may or may not "
+                   f"be live. Check the account by hand before re-running.", code=3)
     f.snap("published")
     device.sleep(d)
     print(f"PUBLISHED as {args.account}. Verify Insights/Boost visible in: {shots}")
