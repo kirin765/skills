@@ -126,6 +126,19 @@ class Flow:
                   "'Map preview' location modal is up and would not dismiss — refusing to "
                   "publish rather than tag the account's real physical location")
 
+    def verify_no_location(self):
+        """2nd layer of defense: Verify that the location row is 'Add location'.
+
+        If the text 'Add location' is missing from the hierarchy on the Share screen,
+        it means a location tag is active (either auto-suggested or selected).
+        Refuse to publish to avoid leaking physical location.
+        """
+        xml = self.d.dump_hierarchy()
+        if "Add location" not in xml:
+            self.stop("location_leak_check",
+                      "Location tag is set (expected 'Add location' text but it is missing). "
+                      "Refusing to publish to prevent physical location leak.")
+
     def _ai_toggle(self, row_cy: int):
         """The 'Add AI label' toggle → (is_on, cx, cy), or None when it can't be read.
 
@@ -218,6 +231,14 @@ def main() -> int:
         return 1
 
     d = u2.connect(args.serial)
+
+    # 1st layer of defense: Revoke Instagram location permissions on start
+    try:
+        d.shell("pm revoke com.instagram.android android.permission.ACCESS_FINE_LOCATION")
+        d.shell("pm revoke com.instagram.android android.permission.ACCESS_COARSE_LOCATION")
+    except Exception as e:
+        print(f"WARNING: Failed to revoke location permissions: {e}", file=sys.stderr)
+
     f = Flow(d, shots)
 
     # 2. cold start + account verification
@@ -285,6 +306,7 @@ def main() -> int:
     time.sleep(2)
     f.click_text("Continue", "download_modal", optional=True)
     f.dismiss_location()
+    f.verify_no_location()
     f.snap("share_settings")
 
     # 7. caption
@@ -311,6 +333,7 @@ def main() -> int:
     #    second 'Next' here). Order matters: the location modal resets the AI label,
     #    so dismiss it FIRST, then re-assert the label, then Share.
     f.dismiss_location()
+    f.verify_no_location()
     if args.ai_label:
         f.set_ai_label_on()
     f.snap("pre_share")
