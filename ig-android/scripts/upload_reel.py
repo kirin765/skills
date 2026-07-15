@@ -213,6 +213,17 @@ def main() -> int:
         print(f"video not found: {video}", file=sys.stderr)
         return 1
 
+    # Ensure adb is connected to the serial if it's an IP address (wake up Wi-Fi card if sleeping)
+    if ":" in args.serial:
+        ip = args.serial.split(":")[0]
+        try:
+            # Ping first to wake up the Wi-Fi card (prevent high-latency connection timeouts)
+            subprocess.run(["ping", "-c", "2", "-W", "2000", ip], capture_output=True, timeout=5)
+        except Exception:
+            pass
+        # Explicitly run adb connect
+        subprocess.run(["adb", "connect", args.serial], capture_output=True)
+
     # 0. device identity — Box Q on the same LAN also serves :5555
     model = sh(["adb", "-s", args.serial, "shell", "getprop", "ro.product.model"])
     if model != "IM-H031":

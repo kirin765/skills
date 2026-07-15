@@ -14,6 +14,7 @@ adb + uiautomator2 로 IM-H031 태블릿의 Instagram 앱을 조작한다. 브�
 - 대상: **iMUZ IM-H031** (Android 15, 2000×1200 가로, USB 시리얼 `H03125M1F09706`), 무선 adb `<DHCP IP>:5555`.
 - ⚠️ **같은 네트워크에 Box Q(Homatics TV박스)가 5555를 열고 있다.** IP만 보고 연결하면 엉뚱한 기기다(실제 사고 사례: 2026-07-04, 영상을 Box Q에 푸시). 연결 후 **반드시** `adb -s <serial> shell getprop ro.product.model` == `IM-H031` 확인 후 진행.
 - IP를 모르면 서브넷 스캔: `for i in $(seq 2 254); do (nc -z -G 1 192.168.0.$i 5555 2>/dev/null && echo OPEN $i) & done; wait` → 각 OPEN IP에 connect + 모델 확인.
+- **기기 연결 실패 시 (Wi-Fi 저전력 모드 대응)**: 태블릿의 Wi-Fi 카드가 저전력 모드로 진입하면 패킷 지연시간(RTT)이 1초 이상으로 늘어나 포트 스캔이나 연결이 실패할 수 있다. 대상 IP로 핑을 보내고(`ping -c 2 -W 2000 <IP>`) 연결하면 정상 복구된다 (`upload_reel.py` 가동 시 자동 수행).
 - 둘 다 실패하면 USB 연결 후 `adb tcpip 5555` 재활성화가 필요하다 — 이건 사용자에게 요청.
 - 화면잠금은 '없음'이어야 무인 조작 가능 (igw.device.wake 가 swipe 키가드만 해제).
 - 작업 종료 시 화면은 `igw.device.sleep(d)` 로 끈다 — warm.py 는 finally 에서 항상, upload_reel.py 는 게시 성공 시 자동 수행. 수동/애드혹 조작 후에도 마지막에 호출할 것.
@@ -110,7 +111,7 @@ python3 warm.py --dump                                   # 셀렉터 보정용 U
 | 한국어 캡션 | ✅ |
 | **AI 라벨 tri-state** | ✅ **공유화면에 토글이 4개**(AI label·Threads·Facebook·Your story)인데 행 매칭이 AI label 만 정확히 선택. 8단계·9단계 2회 다 ON 확인 |
 | **게시 검증** (`posts after: 13 (was 12)`) | ✅ Share 탭 후 폴링해 실제 증가 확인 |
-| **위치태그 모달** | ⚠️ **미검증** — 이번엔 IG 가 안 띄웠다. "Add location" 은 미설정 상태였다. `dismiss_location()` 은 기록된 문자열("Map preview"·Cancel) 기반 코드로 남아 있고, 실물 확인은 못 했다 |
+| **위치태그 모달 및 유출 방지** | ✅ **실측 검증 완료 (07-15 18:55)** — `pm revoke`를 통해 `ACCESS_FINE_LOCATION` 및 `ACCESS_COARSE_LOCATION`이 모두 성공적으로 회수(`granted=false`)되었으며, 화면 레이아웃에서 `"Add location"` 문자열 유무를 검증하여 위치 유출을 차단하는 3중 방어막의 유효성을 실기기 리허설로 확인했다. |
 
 **삭제 다이얼로그는 "Delete reel?" 이다** — 게시물의 "Delete Post?" 와 문구가 다르다. 선택지는 `Delete` / `Move to drafts` / `Cancel`. **`Move to drafts` 는 금지** — 드래프트가 남아 다음 업로드에서 위 모달을 부른다. 30일간 Your activity → Recently deleted 에서 복구 가능.
 
