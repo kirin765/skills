@@ -97,6 +97,23 @@ python3 warm.py --dump                                   # 셀렉터 보정용 U
 
 **무인 스케줄 (2026-07-04~)**: launchd `com.brain.ig-warm` 이 매일 12:40·21:35 에 `warm-routine.sh` 를 실행한다 — 태블릿 IP 자동 탐색(모델 검증 포함) → `warm.py --account happylife2080100`. 프라이밍 대상은 happylife 만 (기준: brain `wiki/topics/ig-topic-priming.md` — photofix 는 신규 계정이라 게시가 곧 프라이밍). 니치 패스: `explore/tags/` 딥링크 그리드에서 시청 — `GRID_CELL`(`image_button`) 셀렉터는 미캘리브레이션이므로 첫 실기기 런에서 `--dump` 로 확인·보정할 것.
 
+## 3.5 실측 검증 기록 (2026-07-15, happylife2080100 게시→삭제 1회전)
+
+리허설(`--stop-before-share`) → 실게시 → 즉시 삭제로 전 경로를 실기기에 대고 확인했다. 포스트 수 12 → 13 → 12 로 원복.
+
+| 경로 | 상태 |
+|---|---|
+| 미디어스토어 가드 — 푸시 파일이 최신인지 | ✅ 고유 파일명으로 통과 |
+| 포스트 수 기준선 (`posts before: 12`) | ✅ |
+| **드래프트 모달** ("Keep editing your draft?") | ✅ **실제로 떴고 자동 처리됨** — 07-14 boseok 을 죽인 그 모달. 리허설이 남긴 컴포저 상태가 조건을 재현했다 |
+| 트렌딩 오디오 (rank 2) | ✅ |
+| 한국어 캡션 | ✅ |
+| **AI 라벨 tri-state** | ✅ **공유화면에 토글이 4개**(AI label·Threads·Facebook·Your story)인데 행 매칭이 AI label 만 정확히 선택. 8단계·9단계 2회 다 ON 확인 |
+| **게시 검증** (`posts after: 13 (was 12)`) | ✅ Share 탭 후 폴링해 실제 증가 확인 |
+| **위치태그 모달** | ⚠️ **미검증** — 이번엔 IG 가 안 띄웠다. "Add location" 은 미설정 상태였다. `dismiss_location()` 은 기록된 문자열("Map preview"·Cancel) 기반 코드로 남아 있고, 실물 확인은 못 했다 |
+
+**삭제 다이얼로그는 "Delete reel?" 이다** — 게시물의 "Delete Post?" 와 문구가 다르다. 선택지는 `Delete` / `Move to drafts` / `Cancel`. **`Move to drafts` 는 금지** — 드래프트가 남아 다음 업로드에서 위 모달을 부른다. 30일간 Your activity → Recently deleted 에서 복구 가능.
+
 ## 4. UI 드리프트 대응
 
 IG 앱 업데이트로 셀렉터가 깨지는 건 예정된 일이다. 그때:
