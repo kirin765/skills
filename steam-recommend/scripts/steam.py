@@ -22,6 +22,7 @@ the key is wrong or the profile's "Game details" is not public.
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -37,6 +38,8 @@ STEAM_ID = os.environ.get("STEAM_ID", DEFAULT_STEAM_ID)
 
 WEB_API = "https://api.steampowered.com"
 SPY_API = "https://steamspy.com/api.php"
+STORE_SEARCH = "https://store.steampowered.com/search/results/"
+STORE_TAGDATA = "https://store.steampowered.com/tagdata/populartags/english"
 ITAD_API = "https://api.isthereanydeal.com"
 ITAD_KEY = os.environ.get("ITAD_API_KEY", "bc9ddcdeadab572423b5f7be5e878ca60dfb0655")
 CACHE = Path(__file__).resolve().parent / ".spy_cache.json"
@@ -173,11 +176,78 @@ def spy(appid, cache=None):
     return rec
 
 
-def tag_games(tag):
-    """Games carrying a SteamSpy tag (1 req / 60s server-side — call sparingly)."""
-    t = urllib.parse.quote(tag)
-    data = _get(f"{SPY_API}?request=tag&tag={t}") or {}
-    return data  # dict: appid -> {name, positive, negative, ...}
+_TAG_IDS = None
+
+
+def _tag_ids():
+    """Steam's official tag name -> tagid map (~430 tags)."""
+    global _TAG_IDS
+    if _TAG_IDS is None:
+        _TAG_IDS = {t["name"]: t["tagid"] for t in (_get(STORE_TAGDATA) or [])}
+    return _TAG_IDS
+
+
+def _resolve_tag(tag):
+    ids = _tag_ids()
+    if tag in ids:
+        return ids[tag]
+    # SteamSpy wrote some tags with hyphens/spaces swapped ("Base-Building" vs "Base Building")
+    norm = {k.lower().replace("-", " "): v for k, v in ids.items()}
+    return norm.get(tag.lower().replace("-", " "))
+
+
+_ROW_SPLIT = '<a href="https://store.steampowered.com/app/'
+_RE_APPID = re.compile(r'data-ds-appid="(\d+)"')
+_RE_NAME = re.compile(r'<span class="title">([^<]*)</span>')
+_RE_TAGIDS = re.compile(r'data-ds-tagids="\[([\d,]*)\]"')
+_RE_REVIEWS = re.compile(r"(\d+)% of the ([\d,]+) user reviews")
+
+
+def tag_games(tag, limit=100):
+    """Games carrying a tag, from Steam's own store search.
+
+    SteamSpy's request=tag endpoint has been returning {} for every tag, so this
+    reads the first-party source instead. One request yields 100 rows complete with
+    tag ids, review counts and price, and there's no 1-req/sec throttle.
+    """
+    tagid = _resolve_tag(tag)
+    if tagid is None:
+        return {}
+    out = {}
+    for start in range(0, limit, 100):
+        # category1=998 restricts to base games; without it the results are full of
+        # DLC for games the user already owns, which the owned-filter can't catch.
+        url = (f"{STORE_SEARCH}?query&start={start}&count=100&tags={tagid}"
+               f"&category1=998&infinite=1&cc=kr&l=english")
+        data = _get(url) or {}
+        html = data.get("results_html") or ""
+        rows = html.split(_ROW_SPLIT)[1:]
+        if not rows:
+            break
+        for row in rows:
+            m = _RE_APPID.search(row)
+            if not m:
+                continue  # bundles/packages carry no appid
+            appid = int(m.group(1))
+            rev = _RE_REVIEWS.search(row)
+            if rev:
+                pct = int(rev.group(1))
+                total = int(rev.group(2).replace(",", ""))
+                positive = round(total * pct / 100)
+            else:
+                positive = total = 0  # too few reviews for Steam to summarise
+            name = _RE_NAME.search(row)
+            tids = _RE_TAGIDS.search(row)
+            out[appid] = {
+                "appid": appid,
+                "name": name.group(1).strip() if name else None,
+                "positive": positive,
+                "negative": total - positive,
+                "tagids": [int(x) for x in tids.group(1).split(",") if x] if tids else [],
+            }
+        if len(rows) < 100:
+            break
+    return out  # dict: appid -> {name, positive, negative, ...}
 
 
 # ---------- Composites ----------
