@@ -44,6 +44,7 @@ ITAD_API = "https://api.isthereanydeal.com"
 ITAD_KEY = os.environ.get("ITAD_API_KEY", "bc9ddcdeadab572423b5f7be5e878ca60dfb0655")
 CACHE = Path(__file__).resolve().parent / ".spy_cache.json"
 ITAD_CACHE = Path(__file__).resolve().parent / ".itad_cache.json"
+REVIEW_CACHE = Path(__file__).resolve().parent / ".review_cache.json"
 
 
 def _get(url, retries=3):
@@ -139,20 +140,28 @@ def recent():
 
 # ---------- SteamSpy ----------
 
-def _load_cache():
-    if CACHE.exists():
+def _load_json(path):
+    if path.exists():
         try:
-            return json.loads(CACHE.read_text())
+            return json.loads(path.read_text())
         except Exception:
             return {}
     return {}
 
 
-def _save_cache(c):
+def _save_json(path, c):
     try:
-        CACHE.write_text(json.dumps(c))
+        path.write_text(json.dumps(c))
     except Exception:
         pass
+
+
+def _load_cache():
+    return _load_json(CACHE)
+
+
+def _save_cache(c):
+    _save_json(CACHE, c)
 
 
 def spy(appid, cache=None):
@@ -203,12 +212,37 @@ _RE_TAGIDS = re.compile(r'data-ds-tagids="\[([\d,]*)\]"')
 _RE_REVIEWS = re.compile(r"(\d+)% of the ([\d,]+) user reviews")
 
 
-def tag_games(tag, limit=100):
+def app_reviews(appid, cache=None):
+    """All-language review counts for one app (~235ms, cached).
+
+    Store search only ever reports reviews in the requested language, which
+    undercounts anything big outside English (Dyson Sphere Program: 25k English vs
+    91k total) and would bury it. Review gating and ranking need the real numbers.
+    """
+    own = cache is None
+    if own:
+        cache = _load_json(REVIEW_CACHE)
+    key = str(appid)
+    if key in cache:
+        return cache[key]
+    data = _get(f"https://store.steampowered.com/appreviews/{appid}"
+                f"?json=1&language=all&purchase_type=all&num_per_page=0") or {}
+    q = data.get("query_summary") or {}
+    rec = [q.get("total_positive", 0), q.get("total_negative", 0)]
+    cache[key] = rec
+    if own:
+        _save_json(REVIEW_CACHE, cache)
+    return rec
+
+
+def tag_games(tag, limit=100, prefilter=30):
     """Games carrying a tag, from Steam's own store search.
 
     SteamSpy's request=tag endpoint has been returning {} for every tag, so this
-    reads the first-party source instead. One request yields 100 rows complete with
-    tag ids, review counts and price, and there's no 1-req/sec throttle.
+    reads the first-party source instead. Review counts in the search HTML are
+    English-only, so anything clearing `prefilter` gets its true counts topped up
+    from app_reviews(). The prefilter is deliberately low: it only has to drop
+    shovelware before we spend a request per game.
     """
     tagid = _resolve_tag(tag)
     if tagid is None:
@@ -247,6 +281,14 @@ def tag_games(tag, limit=100):
             }
         if len(rows) < 100:
             break
+    rcache = _load_json(REVIEW_CACHE)
+    for rec in out.values():
+        if rec["positive"] + rec["negative"] < prefilter:
+            continue
+        p, n = app_reviews(rec["appid"], rcache)
+        if p + n:
+            rec["positive"], rec["negative"] = p, n
+    _save_json(REVIEW_CACHE, rcache)
     return out  # dict: appid -> {name, positive, negative, ...}
 
 
