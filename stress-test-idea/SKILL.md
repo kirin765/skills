@@ -196,17 +196,10 @@ Single response, structured exactly as:
 ---
 
 ## Verdict: <🟢 GREEN LIGHT / 🟡 RESHAPE / 🔴 KILL> — confidence: <high / medium / low>
-<one line justifying the label; if RESHAPE, name the pivot you'd take>
+<one line justifying the label; if RESHAPE, name the premise that kills the current form — not a pivot>
 
 ## Cheapest 48-hour test
 <one paragraph: the single test, its pre-committed go/kill threshold, what a NO would prove>
-
----
-
-# What it would need to look like to work
-<2–4 concrete pivot directions>
-
-**Honest recommendation:** <one option with tradeoff>
 ```
 
 Do not add an executive summary at the top — the verdict lives *after* the critique, so it's earned, not asserted. The critique structure plus the verdict-and-test *is* the deliverable.
