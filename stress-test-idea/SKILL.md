@@ -1,6 +1,6 @@
 ---
 name: stress-test-idea
-description: Adversarial pre-mortem for a business idea, product concept, or feature BEFORE the user invests serious time building it. Forces a brutally honest 5-point critique (assumptions, competitors, why customers won't pay, what must be true, single biggest problem), then a committed verdict (🟢 green light / 🟡 reshape / 🔴 kill + confidence), the cheapest 48-hour validation test, and the version of the idea that would actually work. Trigger on "이 아이디어 평가해줘", "이거 될까?", "stress-test this idea", "should I build this", "tear this apart", "premortem", "왜 안 될까", or when the user shares an idea/PRD asking for honest feedback — and proactively before /gsd-new-project, brainstorming, or any new-project workflow with an unexamined business premise. Harsh and specific by default; never soften into generic advice.
+description: Adversarial pre-mortem for a business idea, product concept, or feature BEFORE the user invests serious time building it. Forces a brutally honest 5-point critique (assumptions, competitors, why customers won't pay, what must be true, single biggest problem), then a committed verdict (🟢 green light / 🟡 reshape / 🔴 kill + confidence) and the cheapest 48-hour validation test. Explains why the idea fails with verifiable grounds — never proposes improved versions or pivots. Trigger on "이 아이디어 평가해줘", "이거 될까?", "stress-test this idea", "should I build this", "tear this apart", "premortem", "왜 안 될까", or when the user shares an idea/PRD asking for honest feedback — and proactively before /gsd-new-project, brainstorming, or any new-project workflow with an unexamined business premise. Harsh and specific by default; never soften into generic advice.
 ---
 
 # stress-test-idea
@@ -46,7 +46,7 @@ The critique in Step 1 is reasoning; this step is **measurement**. Before writin
 1. **Identify the niche's main communities** — Naver cafe (cafe-article search API ranks cafes by activity), subreddit, DC gallery, Discord, Facebook group. Note member counts: community size is a direct niche-size signal.
 2. **Search the core feature keywords inside them** — not the product name, the *capability* ("사진 도안 변환", "정산 자동화"). Read the top threads.
 3. **Collect what you find**: existing free alternatives (web tools, community-shared spreadsheets, official features), "이미 ○○ 있어요" replies, and — highest value — threads where *someone else already pitched a similar thing* and how the community responded. A predecessor who got deflated is a free natural experiment.
-4. **Check the named incumbents directly** (fetch the site/app) — confirm what they actually do and don't do, so differentiation claims in Step 2 rest on facts.
+4. **Check the named incumbents directly** (fetch the site/app) — confirm what they actually do and don't do, so the claims in section 2 rest on facts.
 
 **Gate rule:** if the scan finds a free, functioning incumbent covering the core mechanism, the idea is **automatically 🟡 RESHAPE-or-worse until a specific differentiation is proven** — "ours is free too" is dead on arrival. Cite scan findings (thread dates, member counts, incumbent URLs) verbatim in sections 2 and 5.
 
@@ -118,7 +118,7 @@ The critique above is the diagnosis. The user still needs a *decision* and a *ne
 One line. Pick exactly one label, and state your confidence (high / medium / low):
 
 - **🟢 GREEN LIGHT** — no fatal flaw found; the load-bearing premises are mostly 🟢/🟡 and the riskiest one is cheaply testable. Build, but run the test first.
-- **🟡 RESHAPE** — the idea as described dies, but a specific reformulation (see Step 2) survives the same critiques. This is the most common honest verdict. Name which pivot you'd take.
+- **🟡 RESHAPE** — the idea as described dies, but the flaw is premise-level, not mechanism-level: some reformulation could survive. Name only the premise that kills the current form and the ground that proves it — do not design or propose the reformulation.
 - **🔴 KILL** — the core mechanism is refuted (usually by the section-5 flaw or by a 🔴 load-bearing premise that no pivot fixes). Say so plainly.
 
 Be willing to give 🟢. A skill that returns 🔴/🟡 every time is just a different kind of yes-man — it trains the user to discount you. The verdict has to be earned by the critique, in either direction.
@@ -134,29 +134,16 @@ Hand the user **one** test — the cheapest thing they can do in the next **48 h
 
 Format: one short paragraph. The test, the threshold, and what a NO would prove.
 
-### Step 2 — Reframe: what the idea would need to look like to work
+### No reframe, no pivots
 
-After the critique, give 2–4 **concrete pivot directions** the user could take. Not "find a better market" — specific reformulations like:
-
-- "Pivot from monitoring (post-event) to auditing (pre-event)"
-- "Pivot from subscription to one-time + concierge add-on"
-- "Pivot from monitoring tool to recovery service for users already in pain"
-- "Pivot from B2C operator to B2B agency tool"
-
-For each pivot, briefly note:
-- What changes in the product
-- What changes in the ICP
-- What changes in the pricing model
-- Why this version survives the critiques in section 1–5
-
-End with **one honest recommendation** — the option you'd actually pick if it were your time and money, with the tradeoff.
+This skill explains why the idea fails and stops there. Do not propose improved versions, pivot directions, or "what it would need to look like to work" — not in a closing section, not as an honest recommendation, not even when an obvious pivot exists. Every failure claim must carry a verifiable ground (scan finding, incumbent URL, price, the user's own data). The deliverable ends at the verdict and the 48-hour test.
 
 ## Style and tone
 
 - **Specific over general.** "NexLev focuses on channel research, not monitoring" beats "competitors exist".
 - **Cite the user's own data.** Quote their research files, their memories, their scraped verbatim. The critique lands harder when it's their own evidence turning against them.
 - **No softening hedges.** Do not write "this might be a concern" or "you may want to consider". Write "this is the killer" or "this assumption is wrong".
-- **No motivational closer.** Do not end with "but you can do it!" or "great idea overall!". End with the honest recommendation.
+- **No motivational closer.** Do not end with "but you can do it!" or "great idea overall!". End with the verdict and the cheapest test.
 - **One short apology max** if the user is upset by the critique. Do not over-apologize — the user is paying for adversarial input, not comfort.
 - **Match user language.** Korean user → Korean response. English user → English. Mixed → match the dominant language of the idea description.
 
