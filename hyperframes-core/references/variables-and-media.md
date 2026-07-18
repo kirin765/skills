@@ -15,12 +15,29 @@ Declare variables on the `<html>` element with `data-composition-variables`. Eac
 ></html>
 ```
 
-Read resolved values once during initialization:
+**Prefer declarative bindings — no script needed** for direct substitution:
+
+```html
+<img class="clip" data-start="0" data-duration="5" data-var-src="heroImage" src="fallback.jpg" />
+<h1 class="clip" data-start="0" data-duration="5" data-var-text="title">Fallback</h1>
+<style>
+  .card {
+    color: var(--accent);
+  }
+</style>
+```
+
+- `data-var-src="id"` substitutes the element's `src` (URL string or image `{url}`); the authored `src` is the fallback.
+- `data-var-text="id"` substitutes the element's own text; element children (nested clips, animated spans) are preserved.
+- Every scalar variable is applied automatically as a `--{id}` CSS custom property on the composition root, so `var(--id)` CSS responds to overrides — no `setProperty` boilerplate.
+- Bindings resolve identically in preview and render, and per-instance for sub-compositions.
+- Caveat: media with audio should keep a real fallback `src` — render audio extraction reads the authored attribute (lint: `media_variable_src_no_fallback`).
+
+For logic beyond direct substitution (loops, conditionals, derived values), read values once during initialization:
 
 ```js
 const { title, accent } = window.__hyperframes.getVariables();
 document.getElementById("title").textContent = title;
-document.documentElement.style.setProperty("--accent", accent);
 ```
 
 ### Variable Rules
@@ -36,7 +53,7 @@ document.documentElement.style.setProperty("--accent", accent);
 - Use `npx hyperframes render --variables '{"title":"Q4 Report"}'` or `--variables-file` for render-time overrides.
 - Add `--strict-variables` in CI: turns undeclared keys, type mismatches, and enum values not in `options` into errors instead of warnings.
 - Read values once during init, not on every animation tick — variables don't change mid-render.
-- Media color grading can use exact variable references inside `data-color-grading` JSON. Use `$gradingPreset` or `${gradingIntensity}` as the whole field value; the runtime resolves it from the current composition's variables before applying the shader grading.
+- Media color grading can use exact variable references inside `data-color-grading` JSON. Use `$gradingPreset` or `${gradingIntensity}` as the whole field value; the runtime resolves it from the current composition's variables before applying shader adjustments, finishing details, blur/pixelate effects, and custom LUTs.
 
 ### Two JSON Shapes (Easy to Confuse)
 
@@ -45,7 +62,7 @@ document.documentElement.style.setProperty("--accent", accent);
 
 ## Media
 
-**NON-NEGOTIABLE: `<video>`/`<audio>` must be a DIRECT child of the host composition root (`index.html`).** The runtime only registers + drives media that is a direct root child. Media placed inside a sub-composition `<template>`, or wrapped in any intermediate `<div>`, is never seeked/decoded → renders blank (paper/white) or black. `lint`/`validate`/`inspect` do not catch this; per-frame `snapshot` shows the blank panel.
+**NON-NEGOTIABLE: `<video>`/`<audio>` must be a DIRECT child of the host composition root (`index.html`).** The runtime only registers + drives media that is a direct root child. Media placed inside a sub-composition `<template>`, or wrapped in any intermediate `<div>`, is never seeked/decoded → renders blank (paper/white) or black. Do not rely on `lint` or `check` alone; a per-frame `snapshot` reveals the blank panel.
 
 Consequences:
 
@@ -88,3 +105,5 @@ Video elements must be muted and inline. Audio must be a separate `<audio>` elem
 - For volume fades/ducking, animate `volume` on the timeline (`tl.to("#bgm", { volume: 0, duration: 1 }, "outro")`) rather than swapping `data-volume`. The runtime probes the timeline's volume keyframes and applies them identically in preview and render; `data-volume` is the static baseline for elements no tween touches.
 
 For media duration: `<video>` and `<audio>` can omit `data-duration` if the media's intrinsic length is known and you want the full clip. Otherwise provide `data-duration` explicitly.
+
+Input codecs: render decodes video via FFmpeg (frames are pre-extracted and injected), so HEVC/H.265 assets (8/10-bit) render correctly everywhere; live preview auto-proxies any browser-hostile asset (transcodes and caches an H.264 copy on first use, opt out with `--no-proxy` or `media.autoProxy: false`), and `lint` emits an info-level `hevc_preview_codec` note naming affected assets.
