@@ -119,6 +119,24 @@ Both Tistory HTML and Naver plain text are derived from this same trimmed HTML.
 
 If the source URL is NOT yet live (Vercel build still building), wait and re-run — don't try to parse the TSX locally.
 
+## AEO structure (source article MUST follow this)
+
+This skill copies the source article **verbatim** — it does not restructure content. So the SOURCE must already be AEO-optimized (answer-engine friendly) before crossposting. The sajangbu posts already follow this; app-showcase/lifestyle posts often don't. Full spec + checklist: `references/aeo-template.md`. Verified live 2026-07-19.
+
+**Content structure — the real AEO lever, applies to BOTH platforms:**
+1. **Answer-first** — first paragraph is a 40–80자 direct answer to the title's question, wrapped in `<b>`. Hook comes *after*, not before. (답변 엔진은 첫 직답을 뽑아 쓴다.)
+2. **Question-form H2 headings** — "쿠팡 구매확정은 언제 되나요?" not "구매확정". Every section header = the query a user types.
+3. **자주 묻는 질문 section** near the end — 3–6 self-contained Q&A, house style `<h2 data-ke-size="size26">자주 묻는 질문</h2>` + `<dl><dt><b>Q. …</b></dt><dd>…</dd></dl>`.
+4. **Tables** for comparison/rates/dates; `<ol>` for procedures.
+5. Entity defined on first mention; image alt text.
+
+**Platform facts — do NOT rely on schema:**
+- **JSON-LD `<script>` is STRIPPED on save** by BOTH TinyMCE (Tistory) and Naver SmartEditor. Per-post FAQPage/HowTo schema is impossible via the body — and Google deprecated FAQ/HowTo rich results in 2023, so it's low value anyway. Skip it; AEO value comes from the visible structure above.
+- Tistory renders `<table>` fine (TinyMCE.setContent parses HTML). **Naver body is typed as plain text** (keyboard.type), so HTML tables do NOT transfer — for Naver, insert tables via the 표 toolbar manually, or convert the table to a labeled list in the source.
+- Naver: repeat the target keyword in **title + first paragraph + tags** (C-Rank/D.I.A.).
+
+**Editing an EXISTING Tistory post's body** (not the create flow): use `window.tinymce.activeEditor`, and call `ed.save()` after `setContent`/append or the publish serializes the OLD body. To add a section without re-triggering image upload (the "0개의 파일을 업로드 중" hang), append via `ed.getBody().insertAdjacentHTML('beforeend', html)` instead of full `setContent` (which re-injects the `[##_Image##]` macro and can stick in "uploading"). Rapid successive publishes trip a DKAPTCHA — space them out (~25s).
+
 ## Failure modes and how to recover
 
 | symptom | cause | fix |
