@@ -1,7 +1,7 @@
 ---
 name: tistory-naver-crosspost
 description: |
-  Cross-post a blog article from a source URL (sajangbu.com or reviewboost blog) to Tistory and Naver Blog via the user's authenticated Chrome session (CDP port 9222). Both fully automated — title, hero image, body, tags. Trigger on "티스토리/네이버에 글 올려줘", "tistory naver 크로스포스트", "블로그 같이 발행", or mirroring a just-published post. CRITICAL on Naver — body is typed line-by-line via `page.keyboard.type` (real key events), never clipboard paste (UTF-8→MacRoman 외계어) and never bulk insertText (scrambles paired punctuation); hero image via 사진 toolbar button + native filechooser. Not for scraping (naver-blog-brunch-scrape) or arbitrary CDP work (cdp-anywhere).
+  Cross-post a blog article from a source (a live URL like sajangbu.com/reviewboost, OR a local HTML file with an <article> tag) to Tistory and Naver Blog via the user's authenticated Chrome session (CDP port 9222). Both fully automated — title, hero image, body, tags. Image + text only — the skill inserts ONE static hero PNG and has no video-embed path. Trigger on "티스토리/네이버에 글 올려줘", "tistory naver 크로스포스트", "블로그 같이 발행", or mirroring a just-published post. CRITICAL on Naver — body is typed line-by-line via `page.keyboard.type` (real key events), never clipboard paste (UTF-8→MacRoman 외계어) and never bulk insertText (scrambles paired punctuation); hero image via 사진 toolbar button + native filechooser. Not for scraping (naver-blog-brunch-scrape) or arbitrary CDP work (cdp-anywhere).
 ---
 
 # Tistory + Naver Blog Crosspost (CDP)

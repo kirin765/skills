@@ -24,7 +24,7 @@
 
 import { chromium } from "playwright";
 import { execSync } from "node:child_process";
-import { writeFileSync, existsSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync } from "node:fs";
 
 // ---------- arg parsing ----------
 const args = process.argv.slice(2);
@@ -99,7 +99,24 @@ async function connect() {
       die("Chrome CDP not reachable on http://localhost:9222 — start Chrome with --remote-debugging-port=9222");
     }
   }
+  await ensureCdpTab();
   return chromium.connectOverCDP(v.webSocketDebuggerUrl);
+}
+
+// connectOverCDP throws "Browser context management is not supported" if the CDP Chrome has
+// ZERO page targets — e.g. all windows were closed but the process lingers, or a fresh
+// --user-data-dir was launched with no window. /json/version still returns a healthy JSON in
+// that state, so the version probe in connect() can't detect it. Verified live 2026-07-19:
+// chrome-cdp-profile with 0 tabs → connectOverCDP failed; opening one blank tab fixed it.
+// Ensure at least one page target exists before attaching.
+async function ensureCdpTab() {
+  try {
+    const list = await (await fetch("http://localhost:9222/json/list")).json();
+    if (Array.isArray(list) && list.some(t => t.type === "page")) return;
+  } catch {}
+  console.error("⏳ CDP browser has no page target — opening a blank tab so connectOverCDP can attach…");
+  try { await fetch("http://localhost:9222/json/new?about:blank", { method: "PUT" }); } catch {}
+  await new Promise(r => setTimeout(r, 800));
 }
 
 // ---------- clipboard helpers ----------
@@ -109,21 +126,35 @@ function setClipboardPng(absPath) {
 }
 
 // ---------- HTML fetch + transforms ----------
-async function fetchArticleHtml(url) {
-  const res = await fetch(url);
-  if (!res.ok) die(`source URL returned HTTP ${res.status}: ${url}`);
-  const html = await res.text();
+async function fetchArticleHtml(src) {
+  // Source can be a live http(s) URL (sajangbu.com / reviewboost) OR a local HTML file on
+  // disk (e.g. an app's own promo-output/blog/*.html) — the latter needs no live deploy.
+  let html;
+  if (/^https?:\/\//.test(src)) {
+    const res = await fetch(src);
+    if (!res.ok) die(`source URL returned HTTP ${res.status}: ${src}`);
+    html = await res.text();
+  } else {
+    const path = src.replace(/^file:\/\//, "");
+    if (!existsSync(path)) die(`source file not found: ${path}`);
+    html = readFileSync(path, "utf8");
+  }
   const m = html.match(/<article[^>]*>([\s\S]*?)<\/article>/);
-  if (!m) die("no <article> tag in source HTML — is the post live?");
+  if (!m) die("no <article> tag in source HTML — is the post live / does the file wrap its body in <article>?");
   let body = m[1];
+  // Drop the article's own <h1> title — the title is supplied separately via --title, so an
+  // in-article H1 would duplicate it in both the Tistory body and the Naver plain text.
+  body = body.replace(/<h1[^>]*>[\s\S]*?<\/h1>/, "");
   body = body.replace(/<script[\s\S]*?<\/script>/g, "");
   body = body.replace(/<noscript[\s\S]*?<\/noscript>/g, "");
   body = body.replace(/<!--[\s\S]*?-->/g, "");
   body = body.replace(/\s(class|className|style|data-[a-z-]+)="[^"]*"/g, "");
-  // absolutize internal relative hrefs
-  const origin = new URL(url).origin;
-  body = body.replace(/href="\/([^"]*)"/g, `href="${origin}/$1"`);
-  body = body.replace(/href="\/"/g, `href="${origin}/"`);
+  // absolutize internal relative hrefs (http source only — local files have no origin)
+  if (/^https?:\/\//.test(src)) {
+    const origin = new URL(src).origin;
+    body = body.replace(/href="\/([^"]*)"/g, `href="${origin}/$1"`);
+    body = body.replace(/href="\/"/g, `href="${origin}/"`);
+  }
   return body.trim();
 }
 // React's SSR HTML-escapes text nodes (including apostrophes → &#x27;), so any live page
