@@ -8,7 +8,10 @@ description: |
 
 ## What this does
 
-Given a source article URL, hero image, title, and tag list, this skill drives the user's existing Chrome session (CDP port 9222) to:
+Given a source article (live URL **or** local HTML file), hero image, title, and tag list, this skill drives the user's existing Chrome session (CDP port 9222) to:
+
+> **Image + text only — no video.** The skill inserts exactly one static hero PNG per platform; there is no video-upload path (Tistory/Naver video embed is a separate toolbar flow, not built). To promote a video (e.g. an app's `promo-output/*.mp4`), post it separately (youtube-upload / tiktok-upload) and/or drag it into the draft manually before publishing.
+
 
 1. **Tistory** — open `/manage/newpost/`; if the CDP profile is logged out, click through Kakao's "카카오계정으로 로그인" screen and pick the saved `TISTORY_KAKAO_EMAIL` profile card automatically (never types a password — hard-stops with a screenshot if a password field appears); then fill title, inject body HTML into TinyMCE, paste hero PNG at top, fill multi-word tags. Leaves the draft auto-saved. User clicks **[완료] → [발행]** themselves.
 2. **Naver Blog** — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert the hero PNG via the 사진 toolbar button (native OS filechooser, no manual drag), then type the body as plain text via `keyboard.type` line-by-line into the paragraph Naver places after the image, then open the publish panel and fill tags (with spaces stripped — Naver commits on space).
@@ -27,7 +30,7 @@ Given a source article URL, hero image, title, and tag list, this skill drives t
 
 Before invoking the script:
 
-1. **Chrome with CDP on port 9222** is running. Naver Blog (`blog.naver.com/<id>` or their own) must already be logged in — there is no login automation for Naver. Tistory does NOT need to be pre-logged-in: if the session is logged out, the script drives the Kakao login click-through itself (see `ensureTistoryLogin`), as long as the target Kakao account has a saved profile card in this Chrome profile (i.e. the user has completed the password step at least once before).
+1. **Chrome with CDP on port 9222** is running **with at least one open tab**. `connectOverCDP` throws `Browser context management is not supported` if the CDP browser has ZERO page targets (window closed but process lingering, or a fresh `--user-data-dir` with no window) — and `/json/version` still returns healthy JSON in that state, so the probe alone won't catch it. The script now guards this in `ensureCdpTab()` (opens a blank tab via `PUT /json/new` before attaching), but if you hit the error manually, `curl -X PUT http://localhost:9222/json/new?about:blank` fixes it. Naver Blog (`blog.naver.com/<id>` or their own) must already be logged in — there is no login automation for Naver. Tistory does NOT need to be pre-logged-in: if the session is logged out, the script drives the Kakao login click-through itself (see `ensureTistoryLogin`), as long as the target Kakao account has a saved profile card in this Chrome profile (i.e. the user has completed the password step at least once before).
    Probe: `curl -s http://localhost:9222/json/version` returns a JSON.
    If it fails, `crosspost.mjs` now auto-launches the dedicated CDP Chrome (`chrome-cdp-profile`) as a backup and retries for up to 15s — it never touches the user's main/everyday Chrome window, which stays a separate profile. Only if that auto-launch also fails, ask the user to launch it manually:
    ```
@@ -44,7 +47,7 @@ The script accepts inputs via env vars or args. Defaults are tuned for `kirin765
 
 | input | source | example |
 |-------|--------|---------|
-| source URL | `--source` or env `SOURCE_URL` | `https://sajangbu.com/blog/coupang-fast-settlement-fee-truth` |
+| source (URL or local file) | `--source` or env `SOURCE_URL` | `https://sajangbu.com/blog/coupang-fast-settlement-fee-truth` **or** `/Users/.../morse-app/promo-output/blog/morse-app-intro.html` |
 | hero PNG path | `--hero` or env `HERO_PNG` | `/Users/.../public/blog-images/png/<slug>.png` |
 | title | `--title` or env `TITLE` | `쿠팡 빠른정산, '진짜 무료'인가?` |
 | tags (comma-sep) | `--tags` or env `TAGS` | `쿠팡 빠른정산 수수료,셀러월렛 무료,...` |
@@ -121,6 +124,9 @@ If the source URL is NOT yet live (Vercel build still building), wait and re-run
 | symptom | cause | fix |
 |---------|-------|-----|
 | `connectOverCDP timeout` | Chrome not on port 9222, or stale browser-level WS | check `curl http://localhost:9222/json/version`; if fine, retry — sometimes one connect attempt fails |
+| `connectOverCDP: Browser context management is not supported` | CDP Chrome has ZERO page targets (window closed but process alive, or fresh profile with no window). `/json/version` still returns fine so it looks healthy. Verified live 2026-07-19. | `ensureCdpTab()` now auto-opens a blank tab before attaching; if hit manually, `curl -X PUT http://localhost:9222/json/new?about:blank` then retry |
+| Body duplicates the title / `<article>` has its own `<h1>` | source file/page wraps the title in an in-article `<h1>` | `fetchArticleHtml` now strips the first `<h1>…</h1>`; title comes from `--title` only |
+| Want the promo VIDEO in the post | skill inserts a static hero PNG only — no video path | post the video via youtube-upload/tiktok-upload, or drag the mp4 into the draft manually before 발행 |
 | Tistory body is empty | `tinymce.activeEditor` not ready | wait longer (sleep 3s after iframe appears), retry the `evaluate` |
 | Tistory tags missing | clicked too early before page settled | re-run with `tags` mode |
 | Naver editor frame not found | URL redirected through interstitial; popup not dismissed | dismiss popup loop already in script — if it still fails, manually close popup and re-run |
