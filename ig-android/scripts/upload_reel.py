@@ -192,13 +192,36 @@ class Flow:
         self.stop("ai_label", "could not confirm 'Add AI label' ON after 3 toggles")
 
 
+def _apply_trending_audio(d, f, args):
+    import time
+    d.click(762, 1054)
+    time.sleep(4)
+    f.guard()
+    f.click_text("Trending", "audio_trending_tab")
+    f.snap("trending_list")
+    if args.audio_title:
+        f.click_text(args.audio_title, "audio_pick_title")
+    else:
+        # rank rows are laid out top-down; row height ~87px starting y≈344 (2000x1200)
+        y = 344 + (args.audio_trending_rank - 1) * 87
+        d.click(1000, y)
+        time.sleep(4)
+    f.snap("audio_selected")
+    d.click(1353, 905)  # apply (arrow in preview bar)
+    time.sleep(4)
+    if not d(text="Done").click_exists(timeout=6):
+        d.click(1353, 198)  # Done sometimes only reachable by coordinate
+    time.sleep(3)
+    f.snap("audio_done")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--serial", required=True, help="<ip>:5555 or USB serial")
     ap.add_argument("--account", required=True, help="expected IG handle — hard gate")
     ap.add_argument("--video", required=True)
     ap.add_argument("--caption-file", required=True)
-    ap.add_argument("--audio-trending-rank", type=int, default=1, help="pick Nth row of Trending tab (1-based)")
+    ap.add_argument("--audio-trending-rank", type=int, default=1, help="pick Nth row of Trending tab (1-based); 0 or less skips audio entirely")
     ap.add_argument("--audio-title", help="pick this exact title instead of rank")
     ap.add_argument("--ai-label", action="store_true", help="turn ON 'Add AI label' (default for AI-generated visuals)")
     ap.add_argument("--stop-before-share", action="store_true", help="rehearsal: do everything except the final share")
@@ -291,26 +314,13 @@ def main() -> int:
         time.sleep(2)
     f.snap("editor")
 
-    # 5. audio: toolbar first icon → Trending → pick → apply → Done
-    d.click(762, 1054)
-    time.sleep(4)
-    f.guard()
-    f.click_text("Trending", "audio_trending_tab")
-    f.snap("trending_list")
-    if args.audio_title:
-        f.click_text(args.audio_title, "audio_pick_title")
+    # 5. audio: toolbar first icon → Trending → pick → apply → Done.
+    # rank <= 0 skips the step entirely — for renders that already carry their own
+    # authored audio, where layering a trending track just muddies the mix.
+    if args.audio_trending_rank <= 0 and not args.audio_title:
+        f.snap("audio_skipped")
     else:
-        # rank rows are laid out top-down; row height ~87px starting y≈344 (2000x1200)
-        y = 344 + (args.audio_trending_rank - 1) * 87
-        d.click(1000, y)
-        time.sleep(4)
-    f.snap("audio_selected")
-    d.click(1353, 905)  # apply (arrow in preview bar)
-    time.sleep(4)
-    if not d(text="Done").click_exists(timeout=6):
-        d.click(1353, 198)  # Done sometimes only reachable by coordinate
-    time.sleep(3)
-    f.snap("audio_done")
+        _apply_trending_audio(d, f, args)
 
     # 6. Next → share settings
     f.click_text("Next", "editor_next")
