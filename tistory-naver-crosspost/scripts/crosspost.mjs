@@ -262,6 +262,10 @@ async function ensureTistoryLogin(page) {
 // ---------- Tistory ----------
 async function doTistory(ctx, htmlBody) {
   const page = await ctx.newPage();
+  // Tistory fires a native confirm ("…저장된 글이 있습니다. 이어서 작성하시겠습니까?") when a
+  // draft exists. Without a handler Playwright auto-dismisses and the race throws an
+  // unhandled ProtocolError that kills the run — dismiss explicitly and swallow the race.
+  page.on("dialog", d => d.dismiss().catch(() => {}));
   console.log("[tistory] opening newpost…");
   await page.goto(TISTORY_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(3500);
@@ -337,6 +341,7 @@ async function doTistoryTags(page) {
 // ---------- Naver ----------
 async function doNaver(ctx, plainText) {
   const page = await ctx.newPage();
+  page.on("dialog", d => d.dismiss().catch(() => {}));
   console.log("[naver] opening write…");
   await page.goto(NAVER_URL, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(5000);
