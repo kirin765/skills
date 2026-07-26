@@ -47,6 +47,9 @@ const TAGS = TAGS_RAW.split(",").map(s => s.trim()).filter(Boolean);
 // 2026-07-26 사용자 요청: 네이버는 발행 버튼까지 눌러 실제 발행까지 간다. 이전(패널만 열어두는)
 // 동작이 필요하면 --no-publish-naver.
 const NAVER_PUBLISH = !args.includes("--no-publish-naver");
+// 2026-07-26 사용자 요청: 발행 시 글 주제에 맞는 카테고리를 --naver-category 로 넘기고,
+// 블로그에 그 카테고리가 없으면 '낙서장'으로 발행한다.
+const NAVER_CATEGORY = flag("naver-category") || process.env.NAVER_CATEGORY || "낙서장";
 
 const needsContent = mode === "both" || mode === "tistory" || mode === "naver";
 const needsTags    = mode !== "naver"; // skip if naver-only-body (but our default both includes tags)
@@ -364,6 +367,14 @@ async function doTistory(ctx, htmlBody) {
 
   await doTistoryTags(page);
 
+  // 임시저장을 한 번 눌러 자동저장 주기를 기다리지 않고 바로 저장한다 (2026-07-26 사용자 요청)
+  try {
+    const save = page.locator("button:has-text('임시저장')").first();
+    await save.click({ timeout: 4000 });
+    await page.waitForTimeout(2500);
+    console.log("[tistory] 임시저장 clicked");
+  } catch (e) { console.log("[tistory] 임시저장 button not found:", e.message); }
+
   await page.screenshot({ path: "/tmp/tistory-crosspost-done.png" });
   console.log("[tistory] screenshot: /tmp/tistory-crosspost-done.png");
   console.log("[tistory] DRAFT — user clicks [완료] → [발행]");
@@ -450,6 +461,37 @@ async function doNaver(ctx, plainText) {
   else console.log("[naver] --no-publish-naver — publish panel left open for manual 발행");
 }
 
+// 발행 패널의 카테고리 셀렉트박스에서 NAVER_CATEGORY 를 고른다. 그 이름이 목록에 없으면
+// '낙서장'으로 fallback (2026-07-26 사용자 요청). 클래스가 해시라 텍스트 기반으로 찾는다.
+async function selectNaverCategory(editor, page) {
+  try {
+    const opened = await editor.evaluate(() => {
+      const btn = document.querySelector("button[class*='selectbox_button'], button[class*='selectbox']")
+        || [...document.querySelectorAll("button")].find(b => /카테고리/.test(b.getAttribute("aria-label") || ""));
+      if (!btn) return false;
+      btn.click();
+      return true;
+    });
+    if (!opened) { console.log("[naver-cat] category dropdown not found — panel default 유지"); return; }
+    await page.waitForTimeout(800);
+    // 목록 항목은 label/li 로만 찾는다 — 셀렉트박스 버튼 자신의 텍스트(span)에 오매칭 방지
+    const picked = await editor.evaluate((want) => {
+      const items = [...document.querySelectorAll("label, li")]
+        .filter(e => e.offsetParent !== null && !e.closest("button"));
+      const norm = e => (e.textContent || "").trim();
+      let hit = items.find(e => norm(e) === want);
+      if (!hit) hit = items.find(e => norm(e) === "낙서장");
+      if (!hit) return null;
+      hit.click();
+      return norm(hit);
+    }, NAVER_CATEGORY);
+    await page.waitForTimeout(600);
+    console.log(picked
+      ? `[naver-cat] category selected: ${picked}` + (picked !== NAVER_CATEGORY ? ` (요청 '${NAVER_CATEGORY}' 없음 → fallback)` : "")
+      : `[naver-cat] '${NAVER_CATEGORY}'도 '낙서장'도 목록에 없음 — panel default 유지`);
+  } catch (e) { console.log("[naver-cat] skipped:", e.message); }
+}
+
 // 발행 패널 안의 최종 [발행] 버튼을 눌러 실제 발행까지 마친다 (2026-07-26 사용자 요청, e2e).
 // 카테고리·공개범위는 네이버가 기억하는 패널 기본값 그대로 나간다. 발행 성공 판정: URL이
 // 글번호가 붙은 게시글 주소로 바뀌는 것.
@@ -465,6 +507,9 @@ async function doNaverPublish(page) {
       await page.waitForTimeout(1500);
     } catch (e) { console.log("[naver-publish] could not open publish panel:", e.message); return false; }
   }
+
+  // 카테고리 선택: 요청 이름 → 없으면 '낙서장' (2026-07-26 사용자 요청)
+  await selectNaverCategory(editor, page);
 
   // 최종 확인 버튼: data-testid 우선, 해시 클래스 fallback, 마지막으로 패널 내 텍스트가
   // 정확히 "발행"인 버튼(패널을 연 버튼과 텍스트가 같아서 마지막 매치를 쓴다)
