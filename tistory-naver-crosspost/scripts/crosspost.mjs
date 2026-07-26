@@ -44,6 +44,9 @@ const NAVER_URL   = flag("naver-url")   || process.env.NAVER_URL   || "https://b
 const TISTORY_KAKAO_EMAIL = process.env.TISTORY_KAKAO_EMAIL || "kwan765@kakao.com";
 
 const TAGS = TAGS_RAW.split(",").map(s => s.trim()).filter(Boolean);
+// 2026-07-26 사용자 요청: 네이버는 발행 버튼까지 눌러 실제 발행까지 간다. 이전(패널만 열어두는)
+// 동작이 필요하면 --no-publish-naver.
+const NAVER_PUBLISH = !args.includes("--no-publish-naver");
 
 const needsContent = mode === "both" || mode === "tistory" || mode === "naver";
 const needsTags    = mode !== "naver"; // skip if naver-only-body (but our default both includes tags)
@@ -174,9 +177,28 @@ function decodeEntities(s) {
     .replace(/&gt;/g, ">")
     .replace(/&amp;/g, "&");
 }
+// 2026-07-26 사용자 요청 — 긴 문단은 문장 경계에서 끊어 가독성을 높인다. 문장을 탐욕적으로
+// 묶어 한 줄이 max자를 넘지 않게 나눈다.
+function breakSentences(text, max) {
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const lines = [];
+  let cur = "";
+  for (const s of sentences) {
+    if (cur && (cur + " " + s).length > max) { lines.push(cur); cur = s; }
+    else cur = cur ? cur + " " + s : s;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
 function htmlToPlain(html) {
   let s = html;
-  s = s.replace(/<h2>(.*?)<\/h2>/g, "\n\n■ $1\n\n");
+  s = s.replace(/<h2[^>]*>(.*?)<\/h2>/g, "\n\n■ $1\n\n");
+  // QnA(<dl><dt><b>Q…</b></dt><dd>…</dd></dl>) → Q는 자기 줄 + 볼드 마커(**…**, injectNaverBody
+  // 가 Cmd+B 토글로 해석), A는 다음 줄, 쌍 사이 빈 줄 (2026-07-26 사용자 요청).
+  s = s.replace(/<dt[^>]*>([\s\S]*?)<\/dt>/g, (_, q) => `\n\n**${q.replace(/<[^>]+>/g, "").trim()}**\n`);
+  s = s.replace(/<dd[^>]*>([\s\S]*?)<\/dd>/g, (_, a) => `${a.trim()}\n\n`);
+  s = s.replace(/<\/?dl[^>]*>/g, "\n");
   s = s.replace(/<\/p>/g, "\n\n");
   s = s.replace(/<li>(.*?)<\/li>/g, "• $1\n");
   s = s.replace(/<\/?ul>/g, "");
@@ -185,6 +207,29 @@ function htmlToPlain(html) {
   s = s.replace(/<[^>]+>/g, "");
   s = decodeEntities(s);
   s = s.replace(/\n{3,}/g, "\n\n").trim();
+  // 긴 본문 줄만 문장 단위로 끊는다 — 헤더(■)·불릿(•)·볼드 Q 줄은 그대로.
+  s = s.split("\n").map(line => {
+    const t = line.trim();
+    if (!t || t.length <= 60 || /^(\*\*|•|■)/.test(t)) return line;
+    return breakSentences(t, 60).join("\n");
+  }).join("\n");
+  return s;
+}
+
+// Tistory 본문용 변형 (2026-07-26 사용자 요청): QnA <dl>을 문단 쌍으로 풀고(볼드 Q 줄 / A 줄 /
+// 쌍 사이 빈 문단), 인라인 태그 없는 긴 <p>는 문장 경계에서 <br>로 끊는다.
+function formatTistoryHtml(html) {
+  let s = html;
+  s = s.replace(/<dt[^>]*>([\s\S]*?)<\/dt>/g, (_, q) => {
+    const inner = /<b>|<strong>/.test(q) ? q.trim() : `<b>${q.trim()}</b>`;
+    return `<p data-ke-size="size16">${inner}</p>`;
+  });
+  s = s.replace(/<dd[^>]*>([\s\S]*?)<\/dd>/g, `<p data-ke-size="size16">$1</p><p data-ke-size="size16">&nbsp;</p>`);
+  s = s.replace(/<\/?dl[^>]*>/g, "");
+  s = s.replace(/<p([^>]*)>([\s\S]*?)<\/p>/g, (m, attrs, inner) => {
+    if (/<[^>]+>/.test(inner) || inner.length <= 90) return m;
+    return `<p${attrs}>` + breakSentences(inner, 90).join("<br>") + `</p>`;
+  });
   return s;
 }
 
@@ -463,7 +508,15 @@ async function injectNaverBody(page, plainText) {
   // fires real per-character key events instead, so SmartEditor's mutation happens between
   // characters rather than mid-chunk — same fix already proven for the title field.
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].length) await page.keyboard.type(lines[i], { delay: 4 });
+    // **…** 로 감싸인 줄(QnA의 Q 줄)은 Cmd+B 토글로 볼드 타이핑 (2026-07-26 사용자 요청)
+    const boldM = lines[i].match(/^\*\*(.+)\*\*$/);
+    if (boldM) {
+      await page.keyboard.press("Meta+b");
+      await page.keyboard.type(boldM[1], { delay: 4 });
+      await page.keyboard.press("Meta+b");
+    } else if (lines[i].length) {
+      await page.keyboard.type(lines[i], { delay: 4 });
+    }
     if (i < lines.length - 1) await page.keyboard.press("Enter");
     await page.waitForTimeout(25);
   }
