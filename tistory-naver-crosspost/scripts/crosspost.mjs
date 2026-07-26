@@ -207,6 +207,8 @@ function htmlToPlain(html) {
   s = s.replace(/<[^>]+>/g, "");
   s = decodeEntities(s);
   s = s.replace(/\n{3,}/g, "\n\n").trim();
+  // Q 줄 바로 아래에 A가 붙도록 — 빈 줄은 QnA 쌍 '사이'에만 남긴다
+  s = s.replace(/(^\*\*.+\*\*)\n\n+/gm, "$1\n");
   // 긴 본문 줄만 문장 단위로 끊는다 — 헤더(■)·불릿(•)·볼드 Q 줄은 그대로.
   s = s.split("\n").map(line => {
     const t = line.trim();
@@ -443,6 +445,60 @@ async function doNaver(ctx, plainText) {
 
   await page.screenshot({ path: "/tmp/naver-crosspost-ready.png" });
   console.log("[naver] screenshot: /tmp/naver-crosspost-ready.png");
+
+  if (NAVER_PUBLISH) await doNaverPublish(page);
+  else console.log("[naver] --no-publish-naver — publish panel left open for manual 발행");
+}
+
+// 발행 패널 안의 최종 [발행] 버튼을 눌러 실제 발행까지 마친다 (2026-07-26 사용자 요청, e2e).
+// 카테고리·공개범위는 네이버가 기억하는 패널 기본값 그대로 나간다. 발행 성공 판정: URL이
+// 글번호가 붙은 게시글 주소로 바뀌는 것.
+async function doNaverPublish(page) {
+  const editor = page.frames().find(f => f.url().includes("PostWriteForm"));
+  if (!editor) { console.log("[naver-publish] editor frame missing — NOT published"); return false; }
+
+  // doNaverTags 가 이미 패널을 열어뒀지만, 재실행 등으로 닫혀 있으면 다시 연다
+  const panelOpen = await editor.evaluate(() => /태그 편집/.test(document.body.innerText || "")).catch(() => false);
+  if (!panelOpen) {
+    try {
+      await editor.locator("button.publish_btn__m9KHH, button[class*='publish']").first().click({ timeout: 3000 });
+      await page.waitForTimeout(1500);
+    } catch (e) { console.log("[naver-publish] could not open publish panel:", e.message); return false; }
+  }
+
+  // 최종 확인 버튼: data-testid 우선, 해시 클래스 fallback, 마지막으로 패널 내 텍스트가
+  // 정확히 "발행"인 버튼(패널을 연 버튼과 텍스트가 같아서 마지막 매치를 쓴다)
+  let clicked = false;
+  const btn = editor.locator("[data-testid='seOnePublishBtn'], button[class*='confirm_btn']").first();
+  if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await btn.click({ timeout: 4000 }).catch(() => {});
+    clicked = true;
+  } else {
+    clicked = await editor.evaluate(() => {
+      const cands = [...document.querySelectorAll("button")].filter(b => (b.textContent || "").trim() === "발행");
+      if (!cands.length) return false;
+      cands[cands.length - 1].click();
+      return true;
+    }).catch(() => false);
+  }
+  if (!clicked) {
+    await page.screenshot({ path: "/tmp/naver-publish-FAIL.png" }).catch(() => {});
+    console.log("[naver-publish] 발행 button not found — /tmp/naver-publish-FAIL.png");
+    return false;
+  }
+  console.log("[naver-publish] 발행 clicked — waiting for post URL…");
+
+  try {
+    await page.waitForURL(u => /blog\.naver\.com/.test(u.href) && /\/\d{9,}/.test(u.pathname + u.search), { timeout: 25000 });
+  } catch {}
+  await page.waitForTimeout(2000);
+  const url = page.url();
+  const published = /\/\d{9,}|logNo=\d+/.test(url);
+  await page.screenshot({ path: "/tmp/naver-crosspost-published.png" }).catch(() => {});
+  console.log(published
+    ? `[naver-publish] ✅ PUBLISHED: ${url}`
+    : `[naver-publish] ⚠ URL did not change to a post URL (${url}) — verify /tmp/naver-crosspost-published.png`);
+  return published;
 }
 
 // Insert the hero PNG as the FIRST body component (above the text). Live-verified against
@@ -601,8 +657,9 @@ async function doNaverTags(page) {
   let html = "", plain = "";
   if (needsContent) {
     console.log("fetching live article HTML…");
-    html = await fetchArticleHtml(SOURCE_URL);
-    plain = htmlToPlain(html);
+    const raw = await fetchArticleHtml(SOURCE_URL);
+    html = formatTistoryHtml(raw);
+    plain = htmlToPlain(raw);
     writeFileSync("/tmp/crosspost-body.html", html);
     writeFileSync("/tmp/crosspost-body.txt", plain);
     console.log(`html ${html.length}B → /tmp/crosspost-body.html`);

@@ -14,7 +14,9 @@ Given a source article (live URL **or** local HTML file), hero image, title, and
 
 
 1. **Tistory** — open `/manage/newpost/`; if the CDP profile is logged out, click through Kakao's "카카오계정으로 로그인" screen and pick the saved `TISTORY_KAKAO_EMAIL` profile card automatically (never types a password — hard-stops with a screenshot if a password field appears); then fill title, inject body HTML into TinyMCE, paste hero PNG at top, fill multi-word tags. Leaves the draft auto-saved. User clicks **[완료] → [발행]** themselves.
-2. **Naver Blog** — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert the hero PNG via the 사진 toolbar button (native OS filechooser, no manual drag), then type the body as plain text via `keyboard.type` line-by-line into the paragraph Naver places after the image, then open the publish panel and fill tags (with spaces stripped — Naver commits on space).
+2. **Naver Blog** — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert the hero PNG via the 사진 toolbar button (native OS filechooser, no manual drag), then type the body as plain text via `keyboard.type` line-by-line into the paragraph Naver places after the image, then open the publish panel, fill tags (with spaces stripped — Naver commits on space), and **click the final [발행] button** (e2e publish, default since 2026-07-26 per user request; pass `--no-publish-naver` to leave the panel open instead). Category/visibility go out with whatever the panel remembers from the last publish.
+
+**Formatting (2026-07-26 user request):** QnA `<dl><dt><b>Q…</b></dt><dd>…</dd></dl>` renders as: bold Q on its own line (typed with Cmd+B toggled around the line on Naver; `<p><b>Q…</b></p>` on Tistory), answer on the next line, blank line between pairs. Long paragraphs are broken at sentence boundaries (`breakSentences`) — newlines at ~60 chars on Naver, `<br>` at ~90 chars in inline-tag-free `<p>`s on Tistory (`formatTistoryHtml`).
 
 **Why typing (keyboard.type), not paste:** Naver's SmartEditor paste handler mis-decodes clipboard UTF-8 as MacRoman, turning Korean body text into 외계어/mojibake (e.g. `Ïø†Îå°…`). The clipboard itself is valid UTF-8 (`pbpaste` confirms) — the corruption happens inside SmartEditor's `paste` event. The typing path bypasses the paste handler and lands clean. This was the recurring bug; do NOT revert the body to a clipboard/Cmd+V approach.
 
@@ -71,7 +73,7 @@ Run `scripts/crosspost.mjs` from the project root. The script supports increment
 2. **Verify** via screenshots saved to `/tmp/tistory-crosspost-*.png` and `/tmp/naver-crosspost-*.png`.
 3. **User actions** that remain:
    - Tistory tab → click **[완료]** → choose 공개 → **[발행]**
-   - Naver tab → hero image + body are already injected → set 카테고리 (defaults to 낙서장) → click **[발행]** in the already-open side panel
+   - Naver tab → nothing (published automatically; verify the post URL logged as `[naver-publish] ✅ PUBLISHED`). With `--no-publish-naver`: set 카테고리 → click **[발행]** in the open side panel yourself.
 4. **Re-run partial modes** if anything goes wrong:
    - `tags` — refills Tistory tags on the existing open `/manage/newpost/` tab
    - `naver-tags` — clears + refills Naver publish-panel tags
@@ -167,7 +169,7 @@ Currently scoped to **kirin765.tistory.com** + **blog.naver.com/kwan765**. If th
 
 ## Don't do this
 
-- **Don't auto-click Naver's final 발행 button.** The skill leaves the publish panel open so the user verifies category, visibility, comment settings, then clicks 발행 themselves. Auto-publishing risks publishing with wrong category or wrong privacy.
+- ~~Don't auto-click Naver's final 발행 button.~~ **Superseded 2026-07-26 by explicit user request**: the script now clicks the final 발행 button by default (`doNaverPublish`) and verifies the URL flipped to a post URL. Category/visibility ride on the panel's remembered defaults — if those must change, run with `--no-publish-naver` and publish manually.
 - **Don't store cookies or login state.** The skill reuses the user's existing CDP session — no credential handling.
 - **Don't try to parse the TSX/MDX source directly.** Fetching the live rendered HTML is dramatically more reliable.
 - **Don't apply HTML to Naver body, and don't paste it.** SmartEditor mangles HTML, and pasting plain text mis-decodes UTF-8 → mojibake. Plain text via `keyboard.insertText` (typing path) is the proven path.
