@@ -22,9 +22,9 @@
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>StandardOutPath</key>
-  <string>/Users/kiwankim/.tistory-queue/logs/daily-launchd.log</string>
+  <string>/Users/kiwankim/.naver-queue/logs/daily-launchd.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/kiwankim/.tistory-queue/logs/daily-launchd.log</string>
+  <string>/Users/kiwankim/.naver-queue/logs/daily-launchd.log</string>
   <key>RunAtLoad</key>
   <false/>
 </dict>

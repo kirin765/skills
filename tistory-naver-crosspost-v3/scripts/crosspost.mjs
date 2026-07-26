@@ -21,9 +21,11 @@
 //     [--naver-url   <write url>]       # default: https://blog.naver.com/GoBlogWrite.naver
 //
 // modes:
-//   both           (default)  naver full publish, then tistory queue + hook
+//   both           (default)  naver full publish now, then tistory queue + hook
 //   naver          naver only (title + hero + body + tags + 공개 발행)
 //   tistory-queue  tistory queue JSON + hook only (alias: tistory)
+//   queue          enqueue BOTH (naver-queue + tistory-queue), NO hook, no browser —
+//                  naver는 다음 09:00 launchd 잡이 발행, tistory는 초안 대기열에만 등록
 //   naver-tags     clear + re-fill Naver tags on existing publish panel (no publish)
 //
 // Env equivalents: SOURCE_URL, HERO_PNG, TITLE, TAGS, NAVER_URL, TISTORY_URL, SCHEDULED_AT.
@@ -36,6 +38,9 @@ import os from "node:os";
 
 const SCHEDULER = path.join(os.homedir(), ".gemini/config/skills/tistory-post/scripts/tistory-scheduler.mjs");
 const PENDING_DIR = path.join(os.homedir(), ".tistory-queue/pending");
+// Naver 전용 대기열 — 매일 09:00 daily-crosspost.mjs(launchd)가 소비한다. 티스토리 큐와
+// 절대 공유하지 않는다: 공유하면 티스토리 hook이 JSON을 done으로 옮겨 Naver 발행이 누락된다.
+const NAVER_PENDING_DIR = path.join(os.homedir(), ".naver-queue/pending");
 
 // ---------- arg parsing ----------
 const args = process.argv.slice(2);
@@ -58,16 +63,16 @@ const TISTORY_URL_EXPLICIT = flag("tistory-url") || process.env.TISTORY_URL;
 const TAGS = TAGS_RAW.split(",").map(s => s.trim()).filter(Boolean);
 
 const wantsNaver   = mode === "both" || mode === "naver";
-const wantsTistory = mode === "both" || mode === "tistory" || mode === "tistory-queue";
+const wantsTistory = mode === "both" || mode === "tistory" || mode === "tistory-queue" || mode === "queue";
 if ((wantsNaver || wantsTistory) && !SOURCE_URL) die("missing --source URL/path");
 if ((wantsNaver || wantsTistory) && !TITLE) die("missing --title");
 if (wantsTistory && !HERO_PNG) die("missing --hero PNG path (Tistory queue requires it)");
 function die(msg) { console.error("crosspost: " + msg); process.exit(2); }
 
-// ---------- Tistory queue (no CDP) ----------
-// Spec: agent-queue-guide.md — absolute paths only, real .png hero, JSON into
-// ~/.tistory-queue/pending/post-YYYYMMDD-slug.json, then fire-and-forget hook.
-function queueTistory() {
+// ---------- queue writers (no CDP) ----------
+// Spec: agent-queue-guide.md — absolute paths only, real .png hero,
+// post-YYYYMMDD-slug.json into the target pending dir.
+function writeQueueJson(pendingDir, label) {
   let src = SOURCE_URL;
   if (!/^https?:\/\//.test(src)) {
     src = path.resolve(src.replace(/^file:\/\//, ""));
@@ -77,7 +82,7 @@ function queueTistory() {
   const hero = path.resolve(HERO_PNG);
   if (!existsSync(hero)) die("hero PNG not found: " + hero);
   if (!hero.toLowerCase().endsWith(".png")) die("hero must be a .png (clipboard «class PNGf» path): " + hero);
-  if (/\.$/.test(TITLE.trim())) console.log("[tistory-queue] warning: title ends with '.' — guide says drop the trailing period");
+  if (/\.$/.test(TITLE.trim())) console.log(`[${label}] warning: title ends with '.' — guide says drop the trailing period`);
 
   const job = { title: TITLE, source: src, hero };
   if (TAGS.length) job.tags = TAGS;
@@ -86,13 +91,23 @@ function queueTistory() {
 
   const slug = (SLUG || deriveSlug(src)).replace(/[^a-zA-Z0-9가-힣_-]+/g, "-").replace(/^-+|-+$/g, "") || String(Date.now());
   const ymd = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  mkdirSync(PENDING_DIR, { recursive: true });
-  const jsonPath = path.join(PENDING_DIR, `post-${ymd}-${slug}.json`);
+  mkdirSync(pendingDir, { recursive: true });
+  const jsonPath = path.join(pendingDir, `post-${ymd}-${slug}.json`);
   writeFileSync(jsonPath, JSON.stringify(job, null, 2) + "\n");
   JSON.parse(readFileSync(jsonPath, "utf8")); // self-check: valid JSON on disk
-  console.log("[tistory-queue] queued:", jsonPath);
+  console.log(`[${label}] queued:`, jsonPath);
+  return jsonPath;
+}
 
-  if (NO_HOOK) { console.log("[tistory-queue] --no-hook — scheduler NOT triggered"); return; }
+function queueNaver() {
+  writeQueueJson(NAVER_PENDING_DIR, "naver-queue");
+  console.log("[naver-queue] 매일 09:00 com.brain.daily-crosspost 잡이 공개 발행합니다");
+}
+
+function queueTistory() {
+  writeQueueJson(PENDING_DIR, "tistory-queue");
+
+  if (NO_HOOK || mode === "queue") { console.log("[tistory-queue] no hook — scheduler NOT triggered (초안 대기열에만 등록)"); return; }
   if (!existsSync(SCHEDULER)) die("tistory-scheduler.mjs not found at " + SCHEDULER);
   // No path arg on purpose: hook <path> COPIES the file into pending/ (addJob) — the job is
   // already there, so a path arg would enqueue it twice. Bare hook only triggers the run.
@@ -510,4 +525,5 @@ async function publishNaver(page) {
   // Tistory LAST: the hook spawns a detached scheduler that drives the same CDP Chrome —
   // queueing after the Naver work is done keeps the two from fighting over the browser.
   if (wantsTistory) queueTistory();
+  if (mode === "queue") queueNaver();
 })().catch(e => { console.error("FATAL:", e); process.exit(1); });

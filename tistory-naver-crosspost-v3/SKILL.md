@@ -50,24 +50,27 @@ node scripts/crosspost.mjs both \
 
 | mode | does |
 |---|---|
-| `both` (default) | Naver full publish **first**, then Tistory queue + hook |
+| `both` (default) | Naver full publish **now**, then Tistory queue + hook |
 | `naver` | Naver only, through 발행 |
-| `tistory-queue` (alias `tistory`) | queue JSON + hook only — no browser at all |
+| `tistory-queue` (alias `tistory`) | tistory queue JSON + hook only — no browser at all |
+| `queue` | enqueue BOTH queues (`~/.naver-queue` + `~/.tistory-queue`), NO hook, no browser — Naver publishes at the next 09:00 run, Tistory waits in its 초안 대기열 |
 | `naver-tags` | clear + refill Naver tags on an existing open publish panel (no publish) |
 
 Optional flags: `--slug` (queue filename; default derived from source), `--scheduled-at "2026-07-27T09:00:00+09:00"` (Tistory reserved publish), `--no-hook` (queue without triggering — e.g. batch-queue several posts, hook once at the end), `--tistory-url`, `--naver-url`.
 
 **Order is deliberate: Naver first, Tistory hook last.** The hook's detached daemon drives the same CDP Chrome (port 9222) as the Naver automation — firing it before/while the Naver pass runs would have two Playwright drivers fighting over one browser. Queue validation (hero exists, `.png`, `<article>` present) still runs **up front** so a bad Tistory input fails before the irreversible Naver publish.
 
-## Daily 9AM auto-run (launchd)
+## Daily 9AM auto-run (launchd) + the two queues
 
-`com.brain.daily-crosspost` (loaded in `~/Library/LaunchAgents/`, source copy in `scripts/`) runs `scripts/daily-crosspost.mjs` every day at 09:00:
+`com.brain.daily-crosspost` (loaded in `~/Library/LaunchAgents/`, source copy in `scripts/`) runs `scripts/daily-crosspost.mjs` every day at 09:00. It consumes **`~/.naver-queue/pending/`** only:
 
-1. Picks the oldest due JSON from `~/.tistory-queue/pending/` (same sort + `scheduledAt` rule as the tistory-scheduler). Queue empty → logs and exits.
-2. **Naver: full 공개 발행** via this skill's `naver` mode. On success it stamps `naverPublishedAt`/`naverUrl` into the JSON — so a later retry never double-publishes Naver. On failure the JSON stays in pending (retry next morning) and a Telegram ⚠ goes out.
-3. **Tistory: draft only, NO hook** — runs `tistory-scheduler.mjs run` synchronously; the scheduler creates the 임시저장 and moves the JSON to `done/`. Telegram ✅ with the Naver URL on completion.
+1. Picks the oldest due JSON (name sort, `scheduledAt` respected, one per day). Queue empty → logs and exits.
+2. **Naver: full 공개 발행** via this skill's `naver` mode, then moves the JSON to `~/.naver-queue/done/` with `naverPublishedAt`/`naverUrl` stamped. On failure the JSON stays in pending (retry next morning). Telegram ✅/⚠ either way.
+3. **Tistory is never touched by this job.**
 
-**Feeding the queue**: `tistory-queue --no-hook` mode is the enqueue path — it writes the JSON without triggering anything; the next 9AM run picks it up (one post per day). Logs: `~/.tistory-queue/logs/daily-*.log` + `daily-launchd.log`. Manual test run: `launchctl kickstart gui/$UID/com.brain.daily-crosspost`.
+**Why a separate Naver queue** (user decision 2026-07-27): Naver jobs must NOT live in `~/.tistory-queue/` — any tistory hook/run moves pending JSONs to that queue's `done/`, which would silently starve the 9AM Naver publish. The two queues are fully independent: the tistory-scheduler doesn't know `~/.naver-queue/` exists, and the daily job never reads `~/.tistory-queue/`.
+
+**Feeding both queues**: `queue` mode writes the same JSON into `~/.naver-queue/pending/` AND `~/.tistory-queue/pending/`, fires nothing, opens no browser. Result: Naver publishes next 09:00; Tistory sits as a 초안 대기열 entry until a hook/scheduler run drafts it. Logs: `~/.naver-queue/logs/daily-*.log` + `daily-launchd.log`. Manual test run: `launchctl kickstart gui/$UID/com.brain.daily-crosspost`.
 
 ## Preconditions
 
