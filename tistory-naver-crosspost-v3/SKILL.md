@@ -59,6 +59,16 @@ Optional flags: `--slug` (queue filename; default derived from source), `--sched
 
 **Order is deliberate: Naver first, Tistory hook last.** The hook's detached daemon drives the same CDP Chrome (port 9222) as the Naver automation — firing it before/while the Naver pass runs would have two Playwright drivers fighting over one browser. Queue validation (hero exists, `.png`, `<article>` present) still runs **up front** so a bad Tistory input fails before the irreversible Naver publish.
 
+## Daily 9AM auto-run (launchd)
+
+`com.brain.daily-crosspost` (loaded in `~/Library/LaunchAgents/`, source copy in `scripts/`) runs `scripts/daily-crosspost.mjs` every day at 09:00:
+
+1. Picks the oldest due JSON from `~/.tistory-queue/pending/` (same sort + `scheduledAt` rule as the tistory-scheduler). Queue empty → logs and exits.
+2. **Naver: full 공개 발행** via this skill's `naver` mode. On success it stamps `naverPublishedAt`/`naverUrl` into the JSON — so a later retry never double-publishes Naver. On failure the JSON stays in pending (retry next morning) and a Telegram ⚠ goes out.
+3. **Tistory: draft only, NO hook** — runs `tistory-scheduler.mjs run` synchronously; the scheduler creates the 임시저장 and moves the JSON to `done/`. Telegram ✅ with the Naver URL on completion.
+
+**Feeding the queue**: `tistory-queue --no-hook` mode is the enqueue path — it writes the JSON without triggering anything; the next 9AM run picks it up (one post per day). Logs: `~/.tistory-queue/logs/daily-*.log` + `daily-launchd.log`. Manual test run: `launchctl kickstart gui/$UID/com.brain.daily-crosspost`.
+
 ## Preconditions
 
 1. **Naver Blog logged in** on the CDP Chrome (port 9222). No Naver login automation exists. The script auto-launches `chrome-cdp-profile` Chrome if 9222 is down and auto-opens a blank tab if the browser has zero page targets (`Browser context management is not supported` guard).
