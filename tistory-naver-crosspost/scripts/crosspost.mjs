@@ -367,13 +367,15 @@ async function doTistory(ctx, htmlBody) {
 
   await doTistoryTags(page);
 
-  // 임시저장을 한 번 눌러 자동저장 주기를 기다리지 않고 바로 저장한다 (2026-07-26 사용자 요청)
+  // 임시저장을 한 번 눌러 자동저장 주기를 기다리지 않고 바로 저장한다 (2026-07-26 사용자 요청).
+  // 저장 컨트롤은 <button>이 아니라 span.btn-draft 안의 a.action("임시저장") — 옆의 숫자는
+  // 임시저장 목록 열기라 a.action 만 클릭한다 (2026-07-26 DOM 실측).
   try {
-    const save = page.locator("button:has-text('임시저장')").first();
+    const save = page.locator("span.btn-draft a.action, a.action:has-text('임시저장')").first();
     await save.click({ timeout: 4000 });
     await page.waitForTimeout(2500);
     console.log("[tistory] 임시저장 clicked");
-  } catch (e) { console.log("[tistory] 임시저장 button not found:", e.message); }
+  } catch (e) { console.log("[tistory] 임시저장 control not found:", e.message); }
 
   await page.screenshot({ path: "/tmp/tistory-crosspost-done.png" });
   console.log("[tistory] screenshot: /tmp/tistory-crosspost-done.png");
@@ -462,33 +464,47 @@ async function doNaver(ctx, plainText) {
 }
 
 // 발행 패널의 카테고리 셀렉트박스에서 NAVER_CATEGORY 를 고른다. 그 이름이 목록에 없으면
-// '낙서장'으로 fallback (2026-07-26 사용자 요청). 클래스가 해시라 텍스트 기반으로 찾는다.
+// '낙서장'으로 fallback (2026-07-26 사용자 요청).
+// 2026-07-26 실측: 트리거는 button.selectbox_button__*(aria-label "카테고리 목록 버튼"),
+// 항목은 li.item__* > label > span[data-testid^='categoryItemText_']. JS el.click() 은
+// React 에 반영되지 않아 발행이 이전 카테고리로 나갔다 — 반드시 Playwright 실클릭을 쓰고,
+// 선택 후 트리거 버튼 텍스트가 바뀌었는지로 성공을 검증한다.
 async function selectNaverCategory(editor, page) {
   try {
-    const opened = await editor.evaluate(() => {
-      const btn = document.querySelector("button[class*='selectbox_button'], button[class*='selectbox']")
-        || [...document.querySelectorAll("button")].find(b => /카테고리/.test(b.getAttribute("aria-label") || ""));
-      if (!btn) return false;
-      btn.click();
-      return true;
-    });
-    if (!opened) { console.log("[naver-cat] category dropdown not found — panel default 유지"); return; }
-    await page.waitForTimeout(800);
-    // 목록 항목은 label/li 로만 찾는다 — 셀렉트박스 버튼 자신의 텍스트(span)에 오매칭 방지
-    const picked = await editor.evaluate((want) => {
-      const items = [...document.querySelectorAll("label, li")]
-        .filter(e => e.offsetParent !== null && !e.closest("button"));
-      const norm = e => (e.textContent || "").trim();
-      let hit = items.find(e => norm(e) === want);
-      if (!hit) hit = items.find(e => norm(e) === "낙서장");
-      if (!hit) return null;
-      hit.click();
-      return norm(hit);
-    }, NAVER_CATEGORY);
-    await page.waitForTimeout(600);
-    console.log(picked
-      ? `[naver-cat] category selected: ${picked}` + (picked !== NAVER_CATEGORY ? ` (요청 '${NAVER_CATEGORY}' 없음 → fallback)` : "")
-      : `[naver-cat] '${NAVER_CATEGORY}'도 '낙서장'도 목록에 없음 — panel default 유지`);
+    const trigger = editor.locator("button[class*='selectbox_button']").first();
+    if (!(await trigger.isVisible({ timeout: 2000 }).catch(() => false))) {
+      console.log("[naver-cat] category dropdown not found — panel default 유지"); return;
+    }
+    const wants = NAVER_CATEGORY === "낙서장" ? ["낙서장"] : [NAVER_CATEGORY, "낙서장"];
+    for (const want of wants) {
+      const current = ((await trigger.textContent().catch(() => "")) || "").trim();
+      if (current === want) { console.log(`[naver-cat] category already '${want}'`); return; }
+      await trigger.click({ timeout: 3000 });
+      await page.waitForTimeout(700);
+      // 하위 카테고리 항목은 텍스트 앞에 blind "하위 카테고리"가 붙는다 — 제거 후 정확일치
+      const items = editor.locator("span[data-testid^='categoryItemText_']");
+      const n = await items.count().catch(() => 0);
+      let clicked = false;
+      for (let i = 0; i < n; i++) {
+        const txt = (((await items.nth(i).textContent().catch(() => "")) || "")).replace(/하위 카테고리/g, "").trim();
+        if (txt === want) {
+          await items.nth(i).click({ timeout: 3000 }).catch(() => {});
+          clicked = true;
+          break;
+        }
+      }
+      await page.waitForTimeout(700);
+      const nowSel = ((await trigger.textContent().catch(() => "")) || "").trim();
+      if (clicked && nowSel === want) {
+        console.log(`[naver-cat] category selected: ${want}` + (want !== NAVER_CATEGORY ? ` (요청 '${NAVER_CATEGORY}' 없음 → fallback)` : ""));
+        return;
+      }
+      // 못 골랐으면 드롭다운을 닫고 다음 후보로
+      if (clicked) console.log(`[naver-cat] '${want}' 클릭했지만 반영 안 됨 (현재 '${nowSel}')`);
+      else await trigger.click({ timeout: 2000 }).catch(() => {});
+      await page.waitForTimeout(400);
+    }
+    console.log(`[naver-cat] '${NAVER_CATEGORY}'/'낙서장' 선택 실패 — panel default 유지`);
   } catch (e) { console.log("[naver-cat] skipped:", e.message); }
 }
 

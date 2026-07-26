@@ -13,8 +13,8 @@ Given a source article (live URL **or** local HTML file), hero image, title, and
 > **Image + text only — no video.** The skill inserts exactly one static hero PNG per platform; there is no video-upload path (Tistory/Naver video embed is a separate toolbar flow, not built). To promote a video (e.g. an app's `promo-output/*.mp4`), post it separately (youtube-upload / tiktok-upload) and/or drag it into the draft manually before publishing.
 
 
-1. **Tistory** — open `/manage/newpost/`; if the CDP profile is logged out, click through Kakao's "카카오계정으로 로그인" screen and pick the saved `TISTORY_KAKAO_EMAIL` profile card automatically (never types a password — hard-stops with a screenshot if a password field appears); then fill title, inject body HTML into TinyMCE, paste hero PNG at top, fill multi-word tags. Leaves the draft auto-saved. User clicks **[완료] → [발행]** themselves.
-2. **Naver Blog** — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert the hero PNG via the 사진 toolbar button (native OS filechooser, no manual drag), then type the body as plain text via `keyboard.type` line-by-line into the paragraph Naver places after the image, then open the publish panel, fill tags (with spaces stripped — Naver commits on space), and **click the final [발행] button** (e2e publish, default since 2026-07-26 per user request; pass `--no-publish-naver` to leave the panel open instead). Category/visibility go out with whatever the panel remembers from the last publish.
+1. **Tistory** — open `/manage/newpost/`; if the CDP profile is logged out, click through Kakao's "카카오계정으로 로그인" screen and pick the saved `TISTORY_KAKAO_EMAIL` profile card automatically (never types a password — hard-stops with a screenshot if a password field appears); then fill title, inject body HTML into TinyMCE, paste hero PNG at top, fill multi-word tags, and **click 임시저장 once** (2026-07-26 user request — the control is `span.btn-draft a.action`, not a `<button>`; the adjacent number opens the draft list). User clicks **[완료] → [발행]** themselves.
+2. **Naver Blog** — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert the hero PNG via the 사진 toolbar button (native OS filechooser, no manual drag), then type the body as plain text via `keyboard.type` line-by-line into the paragraph Naver places after the image, then open the publish panel, fill tags (with spaces stripped — Naver commits on space), **select the category** (`--naver-category "<name>"` — pick one matching the post topic when invoking; if that name isn't on the blog, falls back to 낙서장, which is also the default when the flag is omitted), and **click the final [발행] button** (e2e publish, default since 2026-07-26 per user request; pass `--no-publish-naver` to leave the panel open instead). Visibility rides on the panel's remembered setting.
 
 **Formatting (2026-07-26 user request):** QnA `<dl><dt><b>Q…</b></dt><dd>…</dd></dl>` renders as: bold Q on its own line (typed with Cmd+B toggled around the line on Naver; `<p><b>Q…</b></p>` on Tistory), answer on the next line, blank line between pairs. Long paragraphs are broken at sentence boundaries (`breakSentences`) — newlines at ~60 chars on Naver, `<br>` at ~90 chars in inline-tag-free `<p>`s on Tistory (`formatTistoryHtml`).
 
@@ -55,6 +55,8 @@ The script accepts inputs via env vars or args. Defaults are tuned for `kirin765
 | tags (comma-sep) | `--tags` or env `TAGS` | `쿠팡 빠른정산 수수료,셀러월렛 무료,...` |
 | mode | first positional arg | `both` (default), `tistory`, `naver`, `tags`, `naver-tags` |
 | Kakao account (Tistory login) | env `TISTORY_KAKAO_EMAIL` | `kwan765@kakao.com` (default) |
+| Naver category | `--naver-category` or env `NAVER_CATEGORY` | topic-matched name, e.g. `dev-log`; missing/absent name → `낙서장` |
+| skip Naver auto-publish | `--no-publish-naver` | leaves the publish panel open for manual 발행 |
 
 ## Workflow
 
