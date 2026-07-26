@@ -60,6 +60,13 @@ Optional flags: `--slug` (queue filename; default derived from source), `--sched
 
 **Order is deliberate: Naver first, Tistory hook last.** The hook's detached daemon drives the same CDP Chrome (port 9222) as the Naver automation — firing it before/while the Naver pass runs would have two Playwright drivers fighting over one browser. Queue validation (hero exists, `.png`, `<article>` present) still runs **up front** so a bad Tistory input fails before the irreversible Naver publish.
 
+## Daily pipeline: 08:20 writer + 09:00 publisher
+
+Two launchd jobs form the full daily automation:
+
+1. **08:20 `com.brain.daily-blog-writer`** — runs `claude -p` headless with `scripts/daily-writer-prompt.md`: RSS-first dedupe (rss.blog.naver.com/kwan765.xml — the 2026-07-27 초파리트랩 duplicate incident is why RSS comes before any API), keyword research via the free stack (searchad keywordtool + blog search API + DataLab), 4-gate verdict, AEO draft + PIL hero PNG into `~/projects/misc/app-showcase/blog-drafts/`, then `queue` mode registration. Skips entirely if `~/.naver-queue/pending/` is non-empty (one-post buffer). Uses `--allowedTools` (no permission-bypass flag). Telegram report at the end.
+2. **09:00 `com.brain.daily-crosspost`** — publishes the queued post to Naver (below).
+
 ## Daily 9AM auto-run (launchd) + the two queues
 
 `com.brain.daily-crosspost` (loaded in `~/Library/LaunchAgents/`, source copy in `scripts/`) runs `scripts/daily-crosspost.mjs` every day at 09:00. It consumes **`~/.naver-queue/pending/`** only:
