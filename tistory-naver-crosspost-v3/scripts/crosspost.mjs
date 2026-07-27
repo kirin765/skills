@@ -54,6 +54,8 @@ const HERO_PNG     = flag("hero")         || process.env.HERO_PNG;
 const TITLE        = flag("title")        || process.env.TITLE;
 const TAGS_RAW     = flag("tags")         || process.env.TAGS         || "";
 const SLUG         = flag("slug");
+// Tistory category name — scheduler maps it to a category id after publish (default: 생활 정보).
+const CATEGORY     = flag("category")     || process.env.TISTORY_CATEGORY;
 const SCHEDULED_AT = flag("scheduled-at") || process.env.SCHEDULED_AT;
 const NO_HOOK      = args.includes("--no-hook");
 const NAVER_URL    = flag("naver-url")    || process.env.NAVER_URL    || "https://blog.naver.com/GoBlogWrite.naver";
@@ -85,6 +87,7 @@ function writeQueueJson(pendingDir, label) {
   if (/\.$/.test(TITLE.trim())) console.log(`[${label}] warning: title ends with '.' — guide says drop the trailing period`);
 
   const job = { title: TITLE, source: src, hero };
+  if (CATEGORY) job.category = CATEGORY;
   if (TAGS.length) job.tags = TAGS;
   if (SCHEDULED_AT) job.scheduledAt = SCHEDULED_AT;
   if (TISTORY_URL_EXPLICIT) job.tistoryUrl = TISTORY_URL_EXPLICIT;
