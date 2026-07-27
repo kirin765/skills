@@ -18,7 +18,7 @@ description: |
 | Naver | fills everything, leaves publish panel open, **user clicks 발행** | sets 공개(전체공개) and **clicks 발행 itself** — fully finished |
 | Tistory | CDP drives the editor (login, TinyMCE, DKAPTCHA…) | **no CDP** — writes a job JSON to `~/.tistory-queue/pending/` and fires the scheduler hook; a detached daemon publishes without the agent |
 
-**v3 auto-publishes Naver deliberately** (user decision 2026-07-26) — v2's "don't auto-click 발행" rule does not apply here. Category stays whatever the editor defaults to (usually 낙서장); if a specific category matters, use v2 or fix it after publish.
+**v3 auto-publishes Naver deliberately** (user decision 2026-07-26) — v2's "don't auto-click 발행" rule does not apply here. Naver category stays the editor default — since the 2026-07-27 category reorg that default is **생활 정보** (the renamed 낙서장), which is right for the daily SEO posts; for a different category use v2 or fix after publish. Tistory category is set via `--category` (below) — without it the scheduler assigns **생활 정보** after publish.
 
 > **Image + text only — no video.** Exactly one static hero PNG per platform; no video-embed path.
 
@@ -56,7 +56,7 @@ node scripts/crosspost.mjs both \
 | `queue` | enqueue BOTH queues (`~/.naver-queue` + `~/.tistory-queue`), NO hook, no browser — Naver publishes at the next 09:00 run, Tistory waits in its 초안 대기열 |
 | `naver-tags` | clear + refill Naver tags on an existing open publish panel (no publish) |
 
-Optional flags: `--slug` (queue filename; default derived from source), `--scheduled-at "2026-07-27T09:00:00+09:00"` (Tistory reserved publish), `--no-hook` (queue without triggering — e.g. batch-queue several posts, hook once at the end), `--tistory-url`, `--naver-url`.
+Optional flags: `--slug` (queue filename; default derived from source), `--category "쿠팡·스마트스토어"` (Tistory category name, goes into the queue JSON; the scheduler assigns it via the manage API right after publish — valid names: 생활 정보(default)·쿠팡·스마트스토어·앱·개발·지난 글, both blogs share this 4-category scheme since 2026-07-27), `--scheduled-at "2026-07-27T09:00:00+09:00"` (Tistory reserved publish), `--no-hook` (queue without triggering — e.g. batch-queue several posts, hook once at the end), `--tistory-url`, `--naver-url`.
 
 **Order is deliberate: Naver first, Tistory hook last.** The hook's detached daemon drives the same CDP Chrome (port 9222) as the Naver automation — firing it before/while the Naver pass runs would have two Playwright drivers fighting over one browser. Queue validation (hero exists, `.png`, `<article>` present) still runs **up front** so a bad Tistory input fails before the irreversible Naver publish.
 
