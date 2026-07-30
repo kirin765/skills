@@ -75,6 +75,8 @@ function run(cmd, args) {
   const args = [V3, "naver", "--source", job.data.source, "--title", job.data.title];
   if (job.data.hero) args.push("--hero", job.data.hero);
   if (tags) args.push("--tags", tags);
+  if (job.data.naverCategory) args.push("--naver-category", job.data.naverCategory);
+  if (job.data.naverTopic) args.push("--naver-topic", job.data.naverTopic);
   const r = run(process.execPath, args);
   log("--- naver output ---\n" + r.out.trim());
   const url = r.out.match(/\[naver-publish\] ✅ PUBLISHED → (\S+)/)?.[1];

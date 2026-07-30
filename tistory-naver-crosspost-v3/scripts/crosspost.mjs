@@ -57,6 +57,9 @@ const SLUG         = flag("slug");
 // Tistory category name — scheduler maps it to a category id after publish (default: 생활 정보).
 const CATEGORY     = flag("category")     || process.env.TISTORY_CATEGORY;
 const SCHEDULED_AT = flag("scheduled-at") || process.env.SCHEDULED_AT;
+// Naver publish-panel settings — 게시판(카테고리) name + 주제 분류 name, both exact-text match.
+const NAVER_CATEGORY = flag("naver-category") || process.env.NAVER_CATEGORY;
+const NAVER_TOPIC    = flag("naver-topic")    || process.env.NAVER_TOPIC;
 const NO_HOOK      = args.includes("--no-hook");
 const NAVER_URL    = flag("naver-url")    || process.env.NAVER_URL    || "https://blog.naver.com/GoBlogWrite.naver";
 // Only forwarded into the queue JSON when explicitly given — the scheduler has its own default.
@@ -88,6 +91,8 @@ function writeQueueJson(pendingDir, label) {
 
   const job = { title: TITLE, source: src, hero };
   if (CATEGORY) job.category = CATEGORY;
+  if (NAVER_CATEGORY) job.naverCategory = NAVER_CATEGORY;
+  if (NAVER_TOPIC) job.naverTopic = NAVER_TOPIC;
   if (TAGS.length) job.tags = TAGS;
   if (SCHEDULED_AT) job.scheduledAt = SCHEDULED_AT;
   if (TISTORY_URL_EXPLICIT) job.tistoryUrl = TISTORY_URL_EXPLICIT;
@@ -293,6 +298,8 @@ async function doNaver(ctx, plainText) {
 
   await doNaverTags(page);
 
+  await setNaverCategoryTopic(page);
+
   const url = await publishNaver(page);
   await page.screenshot({ path: "/tmp/naver-crosspost-published.png" }).catch(() => {});
   console.log("[naver] screenshot: /tmp/naver-crosspost-published.png");
@@ -426,6 +433,73 @@ async function doNaverTags(page) {
     console.log(`[naver-tags] entered ${TAGS.length} tags, chips now: ${finalCount}`);
   } catch (e) {
     console.log("[naver-tags] failed:", e.message);
+  }
+}
+
+// Set 게시판(카테고리) and 주제 분류 in the publish panel. Both optional; exact-text match
+// after whitespace-stripping. Selectors verified live 2026-07-30: category dropdown =
+// button[class*='selectbox_button'] → label[class*='radio_label']; 주제 row =
+// div[class*='option_theme'] a → layer with radio_label + button[class*='ok_btn'].
+async function setNaverCategoryTopic(page) {
+  if (!NAVER_CATEGORY && !NAVER_TOPIC) return;
+  const editor = page.frames().find(f => f.url().includes("PostWriteForm"));
+  if (!editor) { console.log("[naver-cat] editor frame missing — skip"); return; }
+  if (!(await openNaverPublishPanel(editor, page))) return;
+
+  if (NAVER_CATEGORY) {
+    try {
+      await editor.locator("button[class*='selectbox_button']").first().click({ timeout: 3000 });
+      await page.waitForTimeout(800);
+      const r = await editor.evaluate((want) => {
+        const norm = s => (s || "").replace(/\s+/g, "");
+        const lab = [...document.querySelectorAll("label[class*='radio_label']")]
+          .find(l => norm(l.textContent) === norm(want));
+        if (!lab) return "not-found";
+        lab.click();
+        return "clicked";
+      }, NAVER_CATEGORY);
+      await page.waitForTimeout(600);
+      const now = await editor.evaluate(() =>
+        (document.querySelector("button[class*='selectbox_button']")?.textContent || "").trim());
+      console.log(`[naver-cat] "${NAVER_CATEGORY}" ${r} → dropdown now "${now}"`);
+    } catch (e) { console.log("[naver-cat] failed:", e.message); }
+  }
+
+  if (NAVER_TOPIC) {
+    try {
+      const opened = await editor.evaluate(() => {
+        const row = document.querySelector("div[class*='option_theme']");
+        if (!row) return false;
+        (row.querySelector("a, button") || row).click();
+        return true;
+      });
+      if (!opened) { console.log("[naver-topic] 주제 row not found — skip"); return; }
+      await page.waitForTimeout(1000);
+      const r = await editor.evaluate((want) => {
+        const ok = document.querySelector("button[class*='ok_btn']");
+        if (!ok) return "layer-not-open";
+        let c = ok.parentElement;
+        while (c && c.querySelectorAll("label[class*='radio_label']").length === 0) c = c.parentElement;
+        if (!c) return "labels-not-found";
+        const norm = s => (s || "").replace(/\s+/g, "");
+        const lab = [...c.querySelectorAll("label[class*='radio_label']")]
+          .find(l => norm(l.textContent) === norm(want));
+        if (!lab) return "topic-not-found";
+        lab.click();
+        return "clicked";
+      }, NAVER_TOPIC);
+      await page.waitForTimeout(400);
+      if (r === "clicked") {
+        await editor.evaluate(() => document.querySelector("button[class*='ok_btn']")?.click());
+        await page.waitForTimeout(600);
+      } else {
+        // close the layer so it doesn't block the 발행 button
+        await editor.evaluate(() => document.querySelector("button[class*='cancel_btn']")?.click());
+      }
+      const now = await editor.evaluate(() =>
+        (document.querySelector("div[class*='option_theme']")?.textContent || "").trim());
+      console.log(`[naver-topic] "${NAVER_TOPIC}" ${r} → row now "${now}"`);
+    } catch (e) { console.log("[naver-topic] failed:", e.message); }
   }
 }
 

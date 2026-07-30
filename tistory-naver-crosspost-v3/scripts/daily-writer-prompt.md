@@ -51,8 +51,14 @@
 node ~/.claude/skills/tistory-naver-crosspost-v3/scripts/crosspost.mjs queue \
   --source "/Users/kiwankim/projects/misc/app-showcase/blog-drafts/<slug>.html" \
   --hero   "/Users/kiwankim/projects/misc/app-showcase/blog-drafts/<slug>.png" \
-  --title  "..." --tags "태그1,...,태그10" --slug <slug>
+  --title  "..." --tags "태그1,...,태그10" --slug <slug> \
+  --naver-category "<게시판>" --naver-topic "<주제>"
 ```
+
+`--naver-category`와 `--naver-topic`은 글의 주제에 맞게 매번 고른다. 안 넣으면 블로그 기본값(쿠팡·스마트스토어 / 비즈니스·경제)으로 발행되는 사고가 난다 — 반드시 넣는다.
+
+- **게시판** (블로그의 실제 게시판 4개 중 택1, 이름 그대로): `생활 정보`(생활·시즌·건강 키워드 글 — 대부분 여기) · `앱·개발`(개발·IT·앱 글) · `쿠팡·스마트스토어`(셀러·쇼핑몰 운영 글) · `지난 글`(쓰지 않는다)
+- **주제** (네이버 고정 분류, 이름 그대로 — 글 내용에 가장 가까운 것 하나): 요리·레시피, 건강·의학, 일상·생각, 상품리뷰, 원예·재배, 육아·결혼, 반려동물, 패션·미용, 인테리어·DIY, IT·컴퓨터, 비즈니스·경제, 사회·정치, 교육·학문, 어학·외국어, 게임, 스포츠, 국내여행, 세계여행, 맛집, 취미, 사진, 자동차, 문학·책, 영화, 음악, 방송 등. 예: 복숭아 보관법 → `요리·레시피`, 진드기 물린자국 → `건강·의학`, 노래방 인기차트 → `음악`, 재산세 → `비즈니스·경제`
 
 하지 말 것: hook 격발, naver/both 모드 실행, 직접 발행, CDP 브라우저 조작. 등록까지가 네 일이다.
 
