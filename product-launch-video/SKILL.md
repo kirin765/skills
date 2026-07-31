@@ -29,7 +29,7 @@ Goal: Enter with a confirmed brief, create the HyperFrames project, and make the
 
 Initialize only if `hyperframes.json` is missing. Name `<project>` from the brand or domain in kebab-case, such as `acme-promo`; never use workspace name or timestamp.
 
-`npx hyperframes init "videos/<project>" --non-interactive --example=blank` — `init` checks the installed skills against the latest on GitHub and updates the global set if any are out of date.
+`npx hyperframes init "videos/<project>" --non-interactive --example=blank --skill=product-launch-video` — `init` checks the installed skills against the latest on GitHub and updates the global set if any are out of date.
 
 After init, let `<PROJECT_ROOT>` be `videos/<project>` and run every subsequent relative-path command with that directory as its working directory. In the commands below, `.` means `<PROJECT_ROOT>`; never write `.media`, `capture`, or output files in the caller directory.
 
@@ -53,6 +53,8 @@ Goal: Collect the source material, brand signals, and usable assets for the vide
 Classify the input and choose the path. Explicit URL -> capture it and use the site for narration and assets. Pasted script/brief -> save verbatim as `user_script.txt`; `VO_MODE` (verbatim or restructured) comes from `BRIEF.md` — the intent layer asks it when a script arrives (ask once here only if the brief somehow lacks it). Then resolve capture target: URL in text -> use it; brand name only -> `WebSearch`, confirm URL in one line, then crawl; no URL/site (or the brief says don't scrape) -> no-capture path.
 
 Run capture with: `npx hyperframes capture "<URL>" -o ./capture`
+
+For a site tour or show-it-as-is brief, the captured page is the visual source of truth. Use the real screenshot instead of rebuilding the full website in HTML. If the shot needs internal movement, keep the screenshot as the base and overlay real captured assets at measured positions, or rebuild only the one component that moves. For a scroll shot, animate the viewport over `capture/screenshots/full-page.png` — the 1x plate of the whole document, pixel-exact for a 1920-wide viewport travelling down it. It is absent when the page was too tall to capture in one piece; fall back to the overlapping scroll-position shots in the same directory. Pushing in past 1:1 wants its own 2x capture of that region instead, since the plate has no headroom above 1x. Recreate the whole page only when the user explicitly asks for a stylized interpretation or the capture is unusable.
 
 If `GEMINI_API_KEY`, `GOOGLE_API_KEY`, or an OpenRouter key exists, capture auto-captions assets into `capture/extracted/asset-descriptions.md`. This is not a review gate. Without a vision key, use DOM context and continue.
 
@@ -126,6 +128,8 @@ Read `references/visual-design.md`, `../hyperframes-animation/blueprints-index.m
 
 For every visual frame, write a **time-coded shot sequence** into `STORYBOARD.md` per `visual-design.md`'s method: pick the frame's blueprint (or compose), instantiate it with THIS product's content, and pace each Scene's reveal to the voiceover so the frame develops across its full duration instead of front-loading then freezing. State layout and motion **inline** per Scene (vocabularies in `visual-design.md` and `motion-language.md`). Add one video-wide `## Video direction` block.
 
+When an element visibly continues across a frame boundary, give both workers the same numerical handoff in `STORYBOARD.md`: add `handoff_out:` to the outgoing frame and a matching `handoff_in:` to the incoming frame. Name the element and its exact x/y position, scale, opacity, and motion direction/speed at the cut — state every field even when it does not change, because a constant is `opacity: 1`, not an omission. Omit the whole block only for a deliberate clean cut. The goal is simple: parallel workers must not invent two different versions of the same seam.
+
 Do not change story, script, asset choices, `asset_candidates`, `transition_in`, or captured source material. Do not write HTML in this step.
 
 Stage named assets after visual design is locked:
@@ -147,6 +151,8 @@ Wait for Step 3.1 audio to finish if audio was started. Then sync durations and 
 `node <SKILL_DIR>/scripts/audio.mjs fetch-sfx --storyboard ./STORYBOARD.md --hyperframes .`
 
 Duration sync is mechanical: real voice duration wins; silent frames keep estimates; never hand-edit synced durations.
+
+Check the music against the final cut before assembly. A library track can match the requested mood but open on a quiet build that drains the first seconds of a short launch video. Compare the opening with later five-second sections; when a later section has a stronger, musically clean start, trim from there and keep a short fade-in plus a longer fade-out. If frame or narration timing changes, redo this check against the new final duration so the music never ends early or leaves silence at the tail.
 
 Before dispatch, read `../hyperframes-core/references/subagent-dispatch.md`. Build the per-frame packets and the worker role payload:
 
@@ -186,9 +192,9 @@ Inject transitions, run checks, pause for review, then render.
 
 `npx hyperframes check`
 
-`npx hyperframes snapshot --at <frame-midpoints>`
+`npx hyperframes snapshot --at <frame-midpoints-and-each-cut-minus-0.1s-and-plus-0.2s>`
 
-`snapshot` stitches the captured frames into one contact sheet (`snapshots/contact-sheet.jpg`). Glance at it; if nothing is obviously broken, move on — don't linger here.
+`snapshot` stitches the captured frames into one contact sheet (`snapshots/contact-sheet.jpg`). Inspect the midpoint frames for layout failures, then compare the two images around every cut. A continuing element must keep the promised position, scale, opacity, and direction; fix any visible pop before rendering.
 
 If a command fails, surface stderr and stop — don't pile on recovery commands. Fix it yourself: the cheapest safe edit to `compositions/frames/NN-*.html`, then rerun the failed check.
 
