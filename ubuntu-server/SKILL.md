@@ -45,10 +45,16 @@ rsync -av --exclude venv --exclude __pycache__ <로컬경로> ubuntu-server:<원
 이 스킬로 서버 작업을 요청받으면, 서버가 꺼져 있을 수 있으니 **작업 전에 `server_up.sh`로
 켜고**, 작업이 끝나면 **`server_down.sh`로 정상 종료 후 플러그를 끈다.**
 
+`server_up.sh` 는 플러그를 **ON 만 하지 않는다.** 플러그가 이미 ON 인 경우가 대부분이라
+`plug on` 은 no-op(함정 2)이기 때문이다. 정지 상태를 W 로 확인한 뒤 **플러그 OFF → 12s → ON**
+순서로 AC 인가 전환을 만들어 BIOS 자동부팅을 트리거한다. 전력이 **20W 이상이면(가동 중)**
+전원을 건드리지 않고 **종료코드 2**로 멈춘다 — 이때는 스크립트를 우회해 직접 플러그를 끄지 말고
+사용자에게 물어본다. (종료코드: 0 성공 / 1 부팅 타임아웃 / 2 가동 중이라 중단)
+
 ```bash
 SK=~/.claude/skills/ubuntu-server/scripts
 
-# 켜기: 플러그 ON → BIOS 자동부팅 → SSH 뜰 때까지 대기 (이미 켜져 있으면 즉시 통과)
+# 켜기: W 로 정지 확인 → 플러그 OFF → 12s → ON(AC 전환) → SSH 대기. SSH 가 이미 뜨면 즉시 통과.
 bash "$SK/server_up.sh"
 
 # ...여기서 실제 작업(ssh/rsync)...
@@ -57,7 +63,7 @@ bash "$SK/server_up.sh"
 bash "$SK/server_down.sh"
 
 # 플러그 저수준 제어 (필요 시)
-"$SK/../venv/bin/python" "$SK/plug.py" status|on|off
+"$SK/../venv/bin/python" "$SK/plug.py" status|on|off|watts
 ```
 
 ### ⚠ 이 머신은 듀얼부팅이다 — Windows / Ubuntu
@@ -80,20 +86,15 @@ Windows가 떠 있으면 Tailscale·SSH는 당연히 죽어 있다(둘 다 Ubunt
 **함정 1 — 듀얼부팅**: 위 절 참조. 가장 흔한 원인이다.
 
 **함정 2 — 플러그가 이미 ON이면 `plug on`은 no-op이다.** BIOS 자동부팅은 *AC 인가 전환* 시점에만
-걸리므로, 켜진 플러그에 다시 on을 보내도 아무 일도 안 일어난다. `server_up.sh` 는 이 경우
-180s 를 그냥 흘려보내고 타임아웃한다.
+걸리므로, 켜진 플러그에 다시 on을 보내도 아무 일도 안 일어난다. 그래서 `server_up.sh` 는
+**정지 확인 후 플러그 OFF → 12s → ON** 순서로 AC 인가 전환을 만들어 부팅을 트리거한다.
 
-**전원을 끊기 전에 서버가 진짜 정지 상태인지 전력으로 확인한다**:
+**전원을 끊기 전에 서버가 진짜 정지 상태인지 전력으로 확인한다**. `server_up.sh` 가 내부적으로
+확인하며, 수동으로 볼 땐 `plug.py watts`:
 
 ```bash
-# DPS 19 = cur_power(W×10), 18 = cur_current(mA), 20 = cur_voltage(V×10)
-~/.claude/skills/ubuntu-server/venv/bin/python - <<'EOF'
-import json; from pathlib import Path; import tinytuya
-cfg = json.loads((Path.home()/".claude/skills/ubuntu-server/scripts/plug_config.json").read_text())
-d = tinytuya.OutletDevice(cfg["device_id"], cfg["address"], cfg["local_key"])
-d.set_version(float(cfg["version"])); d.set_socketTimeout(5)
-dps = d.status()["dps"]; print(f'{dps.get("19",0)/10:.1f} W  switch={dps.get("1")}')
-EOF
+# DPS 19 = cur_power(W×10). 정지 2~5W / 가동 ~100W
+"$SK/../venv/bin/python" "$SK/plug.py" watts
 ```
 
 판정: **정지 2~5W / 가동 중 100W대**(실측 102.4W). `plug.py status`의 on/off는 *플러그 스위치*
@@ -105,8 +106,8 @@ EOF
   Tailscale 피어 확인은 `/Applications/Tailscale.app/Contents/MacOS/Tailscale status`
   (`tailscale` CLI는 PATH에 없다). `k-MS-7B89.local` mDNS 조회는 ISP DNS 와일드카드 때문에
   엉뚱한 공인 IP(218.38.x.x)를 돌려주니 믿지 말 것. LAN 서브넷 스윕은 포트스캔으로 분류돼 차단된다.
-- **W가 0에 가깝다(정지)**: 플러그 OFF → 12s 대기 → ON 으로 AC 전환을 만들어 자동부팅시킨다.
-  복구 실측: 0W → 99.6W(t+24s) → SSH 응답(t+50s).
+- **W가 0에 가깝다(정지)**: `server_up.sh` 가 플러그 OFF → 12s 대기 → ON 으로 AC 전환을 만들어
+  자동부팅시킨다. 복구 실측: 0W → 99.6W(t+24s) → SSH 응답(t+50s).
 
 주의:
 - **로컬 제어라 플러그와 같은 LAN(192.168.0.x)에서만 된다.** 집 밖(다른 네트워크)에서는

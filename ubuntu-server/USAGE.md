@@ -53,7 +53,7 @@ bash "$SK/server_down.sh"   # 끄기. 아래 조건을 만족할 때만 부른�
 
 ### 스크립트가 실제로 하는 일
 
-`server_up.sh` — SSH가 이미 되면 즉시 종료한다. 안 되면 플러그를 ON으로 보내고, 5초 간격으로 SSH를 최대 180초까지 폴링한다. 실패하면 종료코드 1.
+`server_up.sh` — SSH가 이미 되면 즉시 종료한다(코드 0). 안 되면 소비전력을 읽는다. **20W 이상이면 무언가 돌고 있다는 뜻이라 전원을 건드리지 않고 종료코드 2로 중단한다.** 20W 미만(정지)이면 플러그 OFF → 12초 대기 → ON으로 AC 인가 전환을 만들고(그냥 `on`만 보내면 이미 켜진 플러그에는 no-op이라 부팅이 안 걸린다), 5초 간격으로 SSH를 최대 180초까지 폴링한다. 부팅 실패면 종료코드 1.
 
 `server_down.sh` — SSH가 안 되면 플러그만 끄고 종료한다. 되면 `sudo poweroff`를 보내고, Tailscale IP로 ping이 끊길 때까지 최대 90초 기다린 뒤 플러그를 끈다.
 
@@ -63,33 +63,31 @@ bash "$SK/server_down.sh"   # 끄기. 아래 조건을 만족할 때만 부른�
 
 서버 전원코드에 Tuya 스마트플러그가 물려 있다. BIOS는 `Restore after AC Power Loss = Power On`이라 전기가 들어오면 자동으로 부팅한다. 그래서 플러그 ON/OFF가 곧 전원 버튼 역할을 한다. 전원 인가 후 기본 부팅은 Ubuntu로 들어간다(2026-07-15 실측).
 
-### `server_up.sh`가 타임아웃했을 때
+### 왜 켤 때 끄기부터 하는가
 
-원인은 둘 중 하나다.
+BIOS 자동부팅은 AC 전원이 없다가 들어오는 *전환 시점*에만 걸린다. 그런데 플러그는 대부분의 경우 이미 ON이라, `on`을 또 보내면 아무 일도 일어나지 않는다. 예전 스크립트는 이 상태에서 180초를 그냥 흘려보내고 타임아웃했다. 그래서 지금은 **OFF → 12초 → ON**으로 전환을 직접 만든다.
 
-**원인 1 — 사용자가 Windows를 쓰고 있다.** 가장 흔하다. Tailscale과 SSH는 둘 다 Ubuntu 쪽 서비스라 Windows가 떠 있으면 당연히 죽어 있다. 전기가 들어와 있는데 SSH가 안 되는 것은 Ubuntu 고장의 증거가 아니다. 2026-07-15에 이 오진으로 사용자의 Windows를 실제로 강제 종료시킨 적이 있다.
+이 순서의 대가는 명확하다. 켜기 동작이 곧 전원차단을 포함한다. 그래서 아래 소비전력 확인이 스크립트 안에 하드코딩된 전제조건이다.
 
-**원인 2 — 플러그가 이미 ON이었다.** BIOS 자동부팅은 AC 전원이 없다가 들어오는 *전환 시점*에만 걸린다. 이미 켜진 플러그에 `on`을 또 보내면 아무 일도 일어나지 않고, 스크립트는 180초를 그냥 흘려보낸다.
+### `server_up.sh`가 코드 2로 중단했을 때
+
+전기는 들어와 있는데 SSH가 안 되는 상태다. **사용자가 Windows를 쓰고 있다**가 가장 흔한 원인이다. Tailscale과 SSH는 둘 다 Ubuntu 쪽 서비스라 Windows가 떠 있으면 당연히 죽어 있다. 이것은 Ubuntu 고장의 증거가 아니다. 2026-07-15에 이 오진으로 사용자의 Windows를 실제로 강제 종료시킨 적이 있다.
+
+이때 스크립트를 우회해 `plug.py off`를 직접 때리지 않는다. 사용자에게 묻는다.
 
 ### 전원을 끊기 전 반드시 소비전력을 본다
 
-`plug.py status`가 돌려주는 on/off는 *플러그 스위치* 상태일 뿐, 서버가 도는지 여부가 아니다. 반드시 와트를 봐야 한다.
+`plug.py status`가 돌려주는 on/off는 *플러그 스위치* 상태일 뿐, 서버가 도는지 여부가 아니다. 반드시 와트를 봐야 한다. `server_up.sh`가 내부적으로 확인하지만, 수동으로 볼 때는:
 
 ```bash
 # DPS 19 = cur_power(W×10), 18 = cur_current(mA), 20 = cur_voltage(V×10)
-~/.claude/skills/ubuntu-server/venv/bin/python - <<'EOF'
-import json; from pathlib import Path; import tinytuya
-cfg = json.loads((Path.home()/".claude/skills/ubuntu-server/scripts/plug_config.json").read_text())
-d = tinytuya.OutletDevice(cfg["device_id"], cfg["address"], cfg["local_key"])
-d.set_version(float(cfg["version"])); d.set_socketTimeout(5)
-dps = d.status()["dps"]; print(f'{dps.get("19",0)/10:.1f} W  switch={dps.get("1")}')
-EOF
+~/.claude/skills/ubuntu-server/venv/bin/python ~/.claude/skills/ubuntu-server/scripts/plug.py watts
 ```
 
 판정 기준은 실측값이다. 정지 상태는 2~5W, 가동 중은 100W대다(실측 102.4W).
 
 - **와트가 높다 = 무언가 돌고 있다.** 🔴 전원을 끊지 않는다. 대개 Windows 사용 중이다. 와트는 "켜져 있다"만 알려줄 뿐 Windows인지 Ubuntu인지 구분하지 못한다. 사용자에게 "지금 서버에서 Windows 쓰고 계신가요?"라고 묻고 판단을 받는다. 보통 정답은 Ubuntu로 재부팅해 달라고 요청하는 것이다.
-- **와트가 0에 가깝다 = 정지 상태다.** 플러그 OFF → 12초 대기 → ON으로 AC 전환을 만들어 자동부팅시킨다. 복구 실측 타이밍은 0W → 99.6W(t+24초) → SSH 응답(t+50초)이다.
+- **와트가 0에 가깝다 = 정지 상태다.** `server_up.sh`가 플러그 OFF → 12초 대기 → ON으로 AC 전환을 만들어 자동부팅시킨다. 복구 실측 타이밍은 0W → 99.6W(t+24초) → SSH 응답(t+50초)이다.
 
 ### 상태 확인 시 믿으면 안 되는 것들
 
@@ -103,7 +101,7 @@ EOF
 
 ```bash
 SK=~/.claude/skills/ubuntu-server/scripts
-"$SK/../venv/bin/python" "$SK/plug.py" status|on|off
+"$SK/../venv/bin/python" "$SK/plug.py" status|watts|on|off
 ```
 
 기기 정보와 키는 `scripts/plug_config.json`에 있다. `local_key`는 비밀값이므로 로그나 문서에 출력하지 않는다.
