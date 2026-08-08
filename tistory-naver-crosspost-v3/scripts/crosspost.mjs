@@ -236,10 +236,16 @@ function decodeEntities(s) {
 function htmlToPlain(html) {
   let s = html;
   s = s.replace(/<h2>(.*?)<\/h2>/g, "\n\n■ $1\n\n");
+  s = s.replace(/<br\s*\/?>/g, "\n");
   s = s.replace(/<\/p>/g, "\n\n");
   s = s.replace(/<li>(.*?)<\/li>/g, "• $1\n");
   s = s.replace(/<\/?ul>/g, "");
   s = s.replace(/<strong>(.*?)<\/strong>/g, "$1");
+  // <table> 방어: PROMPT.md는 표 금지지만 이전 초안(예: jadu-bogwan 08-03)에는 남아
+  // 있어 셀이 붙어 나갔다. 행은 줄바꿈, 셀은 공백으로 풀어 읽을 수 있게 한다.
+  s = s.replace(/<table[\s\S]*?<\/table>/g, (tbl) =>
+    tbl.replace(/<t[rh][^>]*>/g, "").replace(/<t[dh][^>]*>/g, " ").replace(/<\/t[dh]>/g, "").replace(/<\/tr>/g, "\n")
+  );
   s = s.replace(/<a\s+href="([^"]+)"[^>]*>(.*?)<\/a>/g, "$2 ($1)");
   s = s.replace(/<[^>]+>/g, "");
   s = decodeEntities(s);
