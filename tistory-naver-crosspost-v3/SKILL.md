@@ -21,12 +21,14 @@ description: |
 **v3 auto-publishes Naver deliberately** (user decision 2026-07-26) — v2's "don't auto-click 발행" rule does not apply here. Naver category stays the editor default — since the 2026-07-27 category reorg that default is **생활 정보** (the renamed 낙서장), which is right for the daily SEO posts; for a different category use v2 or fix after publish. Tistory category is set via `--category` (below) — without it the scheduler assigns **생활 정보** after publish.
 
 > **Image + text only — no video.** Exactly one static hero PNG per platform; no video-embed path.
+>
+> **내부링크 URL은 두 플랫폼 모두 명시적으로 링크 처리한다 (2026-08-12).** 네이버는 본문 주입 시 URL 한 줄을 에디터의 링크 다이얼로그(`button.se-link-toolbar-button` → `input.se-custom-layer-link-input` → "링크 입력")로 클릭 가능한 `se-link`로 만든다 — 타이핑 자동 변환은 og-크롤러 비동기 재렌더가 캐럿을 옮겨 불안정(마지막 줄은 Enter가 없어 평문으로 남는 버그)해서 쓰지 않는다. 티스토리는 `fetchArticleHtml`이 `<p>` 안의 순수 URL을 `<a href target="_blank" rel="noopener">`로 감싼다.
 
 ## The two paths
 
 ### 1. Naver Blog (CDP, full publish)
 
-Same proven v2 flow — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert hero PNG via 사진 toolbar + native filechooser, type body line-by-line with `keyboard.type` (never paste — MacRoman mojibake; never bulk insertText — autoformat caret-jump; entities decoded via `decodeEntities`), fill tags in the publish panel (spaces stripped — Naver commits on space) — **then v3 continues**: select the 공개/전체공개 radio, click the final 발행 button (`button[class*='confirm_btn']`, fallback: exact-text 발행 that isn't the panel-open `publish_btn`), wait for navigation to the published post, and log the post URL. Screenshot: `/tmp/naver-crosspost-published.png`.
+Same proven v2 flow — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert hero PNG via 사진 toolbar + native filechooser, type body line-by-line with `keyboard.type` (never paste — MacRoman mojibake; never bulk insertText — autoformat caret-jump; entities decoded via `decodeEntities`). **Body URL lines (the "함께 읽으면 좋은 글" list) are inserted as real links via the editor link dialog, not typed** — see the note at the top. Fill tags in the publish panel (spaces stripped — Naver commits on space) — **then v3 continues**: select the 공개/전체공개 radio, click the final 발행 button (`button[class*='confirm_btn']`, fallback: exact-text 발행 that isn't the panel-open `publish_btn`), wait for navigation to the published post, and log the post URL. Screenshot: `/tmp/naver-crosspost-published.png`.
 
 ### 2. Tistory (queue JSON + hook, NO browser)
 

@@ -246,7 +246,12 @@ function htmlToPlain(html) {
   s = s.replace(/<table[\s\S]*?<\/table>/g, (tbl) =>
     tbl.replace(/<t[rh][^>]*>/g, "").replace(/<t[dh][^>]*>/g, " ").replace(/<\/t[dh]>/g, "").replace(/<\/tr>/g, "\n")
   );
-  s = s.replace(/<a\s+href="([^"]+)"[^>]*>(.*?)<\/a>/g, "$2 ($1)");
+  // <a href="URL">URL</a> (self-link) → keep the bare URL as its own line so the injector can
+  // linkify it via the editor dialog; <a href="X">TEXT</a> → "TEXT (X)" (status quo fallback).
+  s = s.replace(/<a\s+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g, (m, href, txt) => {
+    const t = txt.replace(/<[^>]+>/g, "").trim();
+    return t === href.trim() ? t : `${t} (${href})`;
+  });
   s = s.replace(/<[^>]+>/g, "");
   s = decodeEntities(s);
   s = s.replace(/\n{3,}/g, "\n\n").trim();
@@ -348,6 +353,12 @@ async function insertNaverHeroImage(page, heroPng) {
   return ok;
 }
 
+// A whole line that is just a URL (the "함께 읽으면 좋은 글" internal-link list). These get a
+// deterministic editor-dialog link — SmartEditor's typed auto-linkify is racy (async og-crawler
+// re-renders move the caret mid-typing, 2026-08-12 실측) and the link dialog ALWAYS inserts a
+// fresh linked span at the caret, so inserting on an empty paragraph is clean (no duplication).
+const NAVER_URL_LINE_RE = /^https?:\/\/[^\s]+$/;
+
 async function injectNaverBody(page, plainText) {
   const lines = plainText.replace(/\n{3,}/g, "\n\n").trim().split("\n");
   let clicked = false;
@@ -361,12 +372,23 @@ async function injectNaverBody(page, plainText) {
   }
   if (!clicked) { console.log("[naver] body paragraph not found — body NOT injected"); return; }
   await page.waitForTimeout(400);
+  let typed = 0, linked = 0;
   for (let i = 0; i < lines.length; i++) {
-    if (lines[i].length) await page.keyboard.type(lines[i], { delay: 4 });
+    const line = lines[i];
+    const isUrlLine = NAVER_URL_LINE_RE.test(line.trim());
+    if (line.length) {
+      if (isUrlLine) {
+        if (await insertNaverLink(page, line.trim())) linked++;
+        else { await page.keyboard.type(line, { delay: 4 }); typed++; } // fallback: plain text
+      } else {
+        await page.keyboard.type(line, { delay: 4 });
+        typed++;
+      }
+    }
     if (i < lines.length - 1) await page.keyboard.press("Enter");
-    await page.waitForTimeout(25);
+    await page.waitForTimeout(isUrlLine ? 150 : 25);
   }
-  console.log(`[naver] body typed via keyboard.type (${lines.length} lines)`);
+  console.log(`[naver] body injected: ${typed} text lines typed, ${linked} URL lines linked`);
 
   // Strip inherited 취소선 (only possible on a non-fresh editor)
   try {
@@ -391,6 +413,41 @@ async function injectNaverBody(page, plainText) {
       console.log("[naver] removed inherited 취소선");
     }
   } catch (e) { console.log("[naver] strike-check skipped:", e.message); }
+}
+
+// Insert `url` as a SmartEditor link at the caret (must be in the current, ideally empty,
+// paragraph). Drives the text-link toolbar button → URL input → "링크 입력" confirm — the
+// deterministic path verified 2026-08-12: typing+Enter auto-linkify is racy and the dialog
+// ignores the current selection (always inserts a new linked span). Returns true on success.
+async function insertNaverLink(page, url) {
+  const ef = page.frames().find(f => f.url().includes("PostWriteForm"));
+  if (!ef) return false;
+  try {
+    const linkBtn = ef.locator("button.se-link-toolbar-button").first();
+    if (!(await linkBtn.isVisible({ timeout: 3000 }).catch(() => false))) {
+      console.log("[naver-link] toolbar link button not visible — skip:", url);
+      return false;
+    }
+    await linkBtn.click({ timeout: 4000 });
+    await page.waitForTimeout(700);
+    const input = ef.locator("input.se-custom-layer-link-input").first();
+    await input.fill(url);
+    await page.waitForTimeout(250);
+    const okBtn = ef.locator("button:has-text('링크 입력')").last();
+    await okBtn.click();
+    await page.waitForTimeout(700);
+    const ok = await ef.evaluate((u) => {
+      const paras = [...document.querySelectorAll(".se-component.se-text .se-text-paragraph")];
+      const p = paras[paras.length - 1];
+      const link = p && p.querySelector("span[data-href], a[data-href]");
+      return link ? link.getAttribute("data-href") === u : false;
+    }, url);
+    if (!ok) console.log("[naver-link] link not confirmed — verify manually:", url);
+    return ok;
+  } catch (e) {
+    console.log("[naver-link] insert failed:", e.message, url);
+    return false;
+  }
 }
 
 async function openNaverPublishPanel(editor, page) {
