@@ -37,6 +37,12 @@ Useful flags:
 - `--html "<h1>..</h1>"` — send an HTML alternative
 - `--attach report.pdf` — attach a file (repeat the flag for several)
 - `--from-name "홍길동"` — set a display name
+- `--reply-to-uid <uid>` — **when replying to a message you found via `read_mail.py`, always pass this.** It fetches the original from IMAP and appends a Naver-style `-----Original Message-----` block (headers + full thread) below your text, exactly like Naver Mail's default reply. It also sets `In-Reply-To`/`References` so the reply threads properly on the receiving side.
+
+```bash
+python scripts/send_mail.py --to sa@kggroup.co.kr --subject "RE: ..." \
+  --body-file reply.txt --reply-to-uid 48556
+```
 
 When the user dictates a message, draft the subject/body, **show it to them, and only send after they confirm** — sending is outward-facing and hard to take back. For long bodies write the text to a temp file and use `--body-file` to avoid shell-escaping issues with quotes and newlines.
 
@@ -58,7 +64,7 @@ Listing uses `BODY.PEEK` and opens the mailbox read-only, so it never marks anyt
 
 ASCII `--from`/`--subject` terms search the whole mailbox server-side. **Korean (non-ASCII) `--subject`/`--from` terms are matched client-side over the newest ~500 messages** — imaplib's UTF-8 literal handling is unreliable against Naver, and client-side matching always works. So a Korean subject search only reaches recent mail; for older Korean mail, narrow with `--since` or raise `CLIENT_SCAN_CAP` in the script.
 
-Typical read flow: run a list to get UIDs, then `--uid <n>` to read the one the user cares about.
+Typical read flow: run a list to get UIDs, then `--uid <n>` to read the one the user cares about, then reply with `send_mail.py --reply-to-uid <n>` so the thread is quoted below the new text.
 
 ## Notes
 

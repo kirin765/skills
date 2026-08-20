@@ -5,9 +5,12 @@ Examples:
   python send_mail.py --to a@b.com --subject "안녕" --body "본문입니다"
   python send_mail.py --to a@b.com,c@d.com --subject Hi --body-file draft.txt --attach report.pdf
   python send_mail.py --to a@b.com --subject Hi --html "<h1>hi</h1>" --cc boss@x.com
+  python send_mail.py --to a@b.com --subject "RE: ..." --body-file reply.txt --reply-to-uid 48556
 """
 import argparse
+import email
 import mimetypes
+import re
 import smtplib
 import ssl
 import sys
@@ -17,6 +20,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _creds import get_creds  # noqa: E402
+from read_mail import connect, decode_hdr, extract_body  # noqa: E402
+
+QUOTE_CAP = 30000  # max chars of quoted thread appended under a reply
 
 SMTP_HOST = "smtp.naver.com"
 SMTP_PORT = 465
@@ -26,6 +32,51 @@ def split_addrs(value):
     if not value:
         return []
     return [a.strip() for a in value.replace(";", ",").split(",") if a.strip()]
+
+
+def fetch_message_raw(uid):
+    """Fetch the full RFC822 message by INBOX UID, read-only (never marks read)."""
+    imap = connect()
+    try:
+        imap.select("INBOX", readonly=True)
+        typ, resp = imap.uid("FETCH", str(uid), "(RFC822)")
+        if typ != "OK" or not resp or resp[0] is None:
+            sys.exit(f"Message UID {uid} not found.")
+        return email.message_from_bytes(resp[0][1])
+    finally:
+        try:
+            imap.logout()
+        except Exception:
+            pass
+
+
+def scrub_quote(text):
+    """Strip Naver mail CSS noise and collapse blank runs for a clean inline quote."""
+    text = re.sub(r"#dext_body[^{}]*\{[^}]*\}", "", text)
+    text = re.sub(r"<img[^>]*/?>", "", text)
+    text = re.sub(r"(?m)^\s*[.#]?\w[\w:.-]*\s*\{[^}]*\}\s*$", "", text)
+    text = re.sub(r"(?m)^제목없음\s*$", "", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def build_quote(msg):
+    """Naver-style '-----Original Message-----' block with headers + body."""
+    cc = decode_hdr(msg.get("Cc", ""))
+    body = extract_body(msg).strip()
+    if len(body) > QUOTE_CAP:
+        body = body[:QUOTE_CAP] + "\n[... 이전 내용 생략]"
+    quote = (
+        "\n\n\n-----Original Message-----\n"
+        f"From: {decode_hdr(msg.get('From', ''))}\n"
+        f"To: {decode_hdr(msg.get('To', ''))}\n"
+        + (f"Cc: {cc}\n" if cc else "")
+        + f"Date: {decode_hdr(msg.get('Date', ''))}\n"
+        f"Subject: {decode_hdr(msg.get('Subject', '(제목 없음)'))}\n"
+        "\n"
+        f"{body}"
+    )
+    return scrub_quote(quote)
 
 
 def build_message(address, args):
@@ -40,6 +91,14 @@ def build_message(address, args):
     body = args.body
     if args.body_file:
         body = Path(args.body_file).read_text()
+
+    if args.reply_to_uid:
+        orig = fetch_message_raw(args.reply_to_uid)
+        body = (body.rstrip() + build_quote(orig)) if body else build_quote(orig)
+        msgid = orig.get("Message-ID")
+        if msgid:
+            msg["In-Reply-To"] = msgid
+            msg["References"] = ((orig.get("References", "") or "") + " " + msgid).strip()
 
     if args.html:
         msg.set_content(body or "This message requires an HTML-capable client.")
@@ -71,6 +130,8 @@ def main():
     ap.add_argument("--bcc", help="bcc recipient(s), comma-separated")
     ap.add_argument("--from-addr", help="override From address (defaults to your account)")
     ap.add_argument("--from-name", help="display name for the From header")
+    ap.add_argument("--reply-to-uid", help="quote this INBOX message UID below the reply "
+                                           "(Naver-style original-message block)")
     args = ap.parse_args()
 
     args.to = split_addrs(args.to)
