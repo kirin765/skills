@@ -25,3 +25,8 @@ brag/assets/sfx/**/*.wav
 # scraped raw corpora + derived signals (regenerable, large)
 dcinside-sales-safari/scripts/raw/
 dcinside-sales-safari/scripts/signals/
+
+# secrets — 절대 커밋 금지 (이력 purge 완료 2026-08-24)
+.env
+.env.*
+!.env.example
