@@ -1,6 +1,6 @@
 # Claude Code Skills Inventory
 
-생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills` · 갱신: 2026-08-24 (플러그인 스킬 실체 포함 구조로 확장)
+생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills` · 갱신: 2026-08-24 (플러그인 스킬 실체 포함 구조로 확장, `app-in-toss` 신규)
 
 분류 기준: **A. 사용자 제작**(워크플로우 특화·한국어 설명·전용 scripts 보유) / **B. 설치 스킬팩**(마켓/번들, 영문·범용) / **C. 플러그인 네임스페이스 스킬**(`plugin:skill` 형태, `~/.agents/skills` 실체 — `agents/`에 스냅샷) / **D. 빌트인 명령**.
 (A/B 경계는 휴리스틱 — 일부는 추정.)
@@ -20,6 +20,11 @@
 | 스킬 | 용도 |
 |---|---|
 | `android-app-builder` | 아이디어 → 앱 → Play Console 검토 제출까지 단일 스킬. 게임은 Phaser4+Vite+Capacitor, 그 외는 네이티브 Kotlin으로 분기 개발. AdMob 수익화·에셋 합성·Play 등록/업데이트/검토제출·읽기전용 조회(리뷰·트랙·versionCode) 전부 포함. 구 `play-store-submit`·`play-api-read`·`phaser-arcade-game`을 흡수(2026-06-14 통합). dev 계정 happylife2080100 + GCP claude-for-android. |
+
+### 앱인토스 (Apps in Toss) 미니앱 (신규 2026-08-24)
+| 스킬 | 용도 |
+|---|---|
+| `app-in-toss` | 앱인토스 미니앱 end-to-end: `.ait` 빌드+검증(`scripts/ait-build.sh` — bundle.json·appName·100MB·시크릿 체크) → 테스트(콘솔 QR / `npx ait deploy` / 샌드박스) → 콘솔 앱 등록·앱 정보·게임 등급분류·검토/출시 → 챌린지 신청폼(`templates/submission-form.md`) → 수익화(인앱결제 상품 + 전면/리워드/배너 광고 그룹 ID 배선·배치 설계 + 혜택탭 프로모션) + 업로드 전 시크릿 감사(`scripts/audit-secrets.sh`). 게이트 실측(채널×오퍼 분리) 규칙 포함. 키는 env만 참조 — 값 미포함. |
 
 ### 브라우저 자동화 / 스크랩 (인증세션 CDP · Claude in Chrome)
 | 스킬 | 용도 |

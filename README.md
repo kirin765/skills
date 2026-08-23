@@ -32,6 +32,7 @@ Or install a single skill by pointing at its directory.
 | [naver-searchad](naver-searchad/) | Naver Search Ads (네이버 검색광고) API client — campaigns, ad groups, keywords, bids, performance stats, and the keyword tool (monthly search volume). |
 | [saas-viability-kr](saas-viability-kr/) | Grades solo-developer SaaS ideas for the Korean market (A/B/C) using Mom Test and Start Small Stay Small criteria. |
 | [android-app-builder](android-app-builder/) | Idea → app → Play Console review submission in a single skill. Phaser4+Vite+Capacitor for games, native Kotlin otherwise. AdMob, asset synthesis, Play submit/update/review, read-only queries. |
+| [app-in-toss](app-in-toss/) | Apps in Toss (앱인토스) mini-apps end-to-end: .ait build+validate, console register/앱정보/등급분류/review/launch, challenge submission form, monetization (IAP products + 전면/리워드/배너 ad groups & placement), secret audit before upload. |
 | [cdp-anywhere](cdp-anywhere/) | Generic authenticated-session browser automation via Chrome DevTools Protocol (for sites without a dedicated skill). Explicitly refuses bot-detection evasion. |
 | [x-cdp-search](x-cdp-search/) | X search-result collection via SearchTimeline GraphQL (queryId capture + cursor replay, zero browser render). |
 | [ig-audience-intel](ig-audience-intel/) | IG audience/competitor intelligence via Osintgraph → Neo4j (4-metric Cypher → promo report). Alt-account only, ToS-flagged. |
@@ -42,7 +43,7 @@ Or install a single skill by pointing at its directory.
 | [gmail-mail](gmail-mail/) | Gmail send via authenticated session. |
 | [telegram-bot](telegram-bot/) | Telegram message/notification send (creds from `~/niche-finder/.env`). |
 | [brag](brag/) | Highlight/project brag-doc generator. |
-| + 65 more under 루트 (naver-cafe-scrape, ppomppu-clien-scrape, reddit-cdp-coach, careful-factcheck, cafe24-app-dev/test, coupon/naver-commerce/toss APIs, media/hyperframes video pipeline, ubuntu-server, ASO/SEO tooling…) | |
+| + 64 more under 루트 (naver-cafe-scrape, ppomppu-clien-scrape, reddit-cdp-coach, careful-factcheck, cafe24-app-dev/test, coupon/naver-commerce/toss APIs, media/hyperframes video pipeline, ubuntu-server, ASO/SEO tooling…) | |
 
 전체 목록: `SKILLS-INVENTORY.md` (분류 기준 A 사용자 제작 / B 설치 스킬팩 / C 플러그인 네임스페이스 / D 빌트인 명령).
 
