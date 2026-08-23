@@ -20,39 +20,7 @@ brag/assets/music/*.mp3
 brag/assets/sfx/**/*.ogg
 brag/assets/sfx/**/*.wav
 
-# external-plugin skill symlinks (managed by their plugins, not skill source)
-# these point to ~/.agents/skills/<name> on this machine — not resolvable from a clone
-/baseline-ui
-/fixing-accessibility
-/fixing-metadata
-/fixing-motion-performance
-/agentation
-/aso-audit
-/competitor-alternatives
-/conclave
-/find-skills
-/firecrawl
-/firecrawl-scrape
-/firecrawl-search
-/hyperframes
-/hyperframes-cli
-/hyperframes-media
-/marketing-ideas
-/obsidian-vault
-/page-cro
-/remotion-best-practices
-/remotion-to-hyperframes
-/seo
-/seo-audit
-/seo-geo
-/seo-google
-/seo-page
-/seo-plan
-/seo-schema
-/seo-sxo
-/shadcn
-/social-content
-/theme-factory
+# external-plugin skills: 실체를 agents/ 로 snapshotted (2026-08-24) — root 스킬은 전부 실체 디렉토리로 추적
 
 # scraped raw corpora + derived signals (regenerable, large)
 dcinside-sales-safari/scripts/raw/

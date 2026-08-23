@@ -1,9 +1,16 @@
 # Claude Code Skills Inventory
 
-생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills`
+생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills` · 갱신: 2026-08-24 (플러그인 스킬 실체 포함 구조로 확장)
 
-분류 기준: **A. 사용자 제작**(워크플로우 특화·한국어 설명·전용 scripts 보유) / **B. 설치 스킬팩**(마켓/번들, 영문·범용) / **C. 플러그인 네임스페이스 스킬**(`plugin:skill` 형태, 이 레포 밖 — 플러그인 시스템으로 설치) / **D. 빌트인 명령**.
+분류 기준: **A. 사용자 제작**(워크플로우 특화·한국어 설명·전용 scripts 보유) / **B. 설치 스킬팩**(마켓/번들, 영문·범용) / **C. 플러그인 네임스페이스 스킬**(`plugin:skill` 형태, `~/.agents/skills` 실체 — `agents/`에 스냅샷) / **D. 빌트인 명령**.
 (A/B 경계는 휴리스틱 — 일부는 추정.)
+
+## 레포 구조 (2026-08-24 확장)
+
+- **루트** = `~/.claude/skills` 실체 미러. 외부 플러그인 스킬 심링크를 실체 디렉토리로 교체해 전부 추적(2026-08-24).
+- **`agents/`** = `~/.agents/skills` 전체 스냅샷(134개) — 플러그인/번들 스킬 실체 백업.
+- **`dsh/`** = `~/.dsh/skills` 스냅샷 — DSH 하네스용 스킬.
+- opencode(`~/.config/opencode/skills`)는 전부 심링크 — `~/.claude/skills`·`~/.agents/skills` 실체를 가리켜 별도 소스 없음.
 
 ---
 
@@ -98,5 +105,6 @@
 ## 레포 메모
 
 - 원격: `github.com/kirin765/claude-skills`
-- 제외(.gitignore): `*-workspace/` 생성물, `dcinside-sales-safari/scripts/{raw,signals}/` 스크랩 코퍼스(재생성 가능, ~10MB).
+- 제외(.gitignore): `*-workspace/` 생성물, `dcinside-sales-safari/scripts/{raw,signals}/` 스크랩 코퍼스(재생성 가능, ~10MB), `brag/assets` 상용 오디오(라이선스 미검증).
 - 시크릿은 추적 안 함 — 스킬 코드는 `~/.config/*` / 환경변수 경로만 참조(키 값 미포함).
+- 플러그인 스킬은 더 이상 심링크로 제외하지 않음 — 루트에 실체 복사(`agentation`, `conclave`, `firecrawl-*`, `obsidian-vault` 등) + `agents/` 전체 스냅샷(2026-08-24).
