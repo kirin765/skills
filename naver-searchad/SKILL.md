@@ -1,6 +1,6 @@
 ---
 name: naver-searchad
-description: Manage a Naver Search Ads account (네이버 검색광고) and pull its performance data via the official Search Ads API (api.searchad.naver.com). Use this skill whenever the user wants to list/inspect their 검색광고 campaigns (캠페인), ad groups (광고그룹), keywords (키워드) and their bids (입찰가/입찰), change a bid, pause or enable a campaign/adgroup/keyword, pull impression/click/cost/conversion stats (노출·클릭·비용·전환 리포트), or run the keyword tool for search volume and related keywords (키워드도구, 월간 검색수, 연관키워드, 경쟁정도) — even if they don't name the API. Trigger on phrases like "내 검색광고", "캠페인 목록", "광고그룹/키워드 봐줘", "입찰가 바꿔줘", "광고 성과/리포트 뽑아줘", "키워드 검색량", "naver searchad", "네이버 광고 API". This is the full ad-management API (campaigns/adgroups/keywords/bids/stats) — distinct from the `naver-api` skill, which only does read-only search-demand/trend lookups. For the keyword tool alone either skill works; for anything touching the account's own ads, use this one.
+description: Manage the user's Naver Search Ads account (네이버 검색광고) via the official API (api.searchad.naver.com) — list/inspect campaigns·adgroups·keywords and their bids, change bids, pause/enable, pull impression/click/cost/conversion reports (성과 리포트), run the keyword tool (키워드도구 — 월간 검색수·연관키워드·경쟁정도). Trigger on "내 검색광고", "캠페인/광고그룹/키워드 봐줘", "입찰가 바꿔줘", "광고 성과/리포트 뽑아줘", "키워드 검색량", "네이버 광고 API" — even if the API isn't named. Distinct from naver-api (read-only trend lookups) — anything touching the account's own ads uses this skill; for the keyword tool alone either works.
 ---
 
 # Naver Search Ads API
@@ -9,7 +9,7 @@ Manage and report on the user's Naver Search Ads account through the official RE
 
 ## Credentials
 
-Read automatically from `~/.naver-searchad.env` (`NAVER_ADS_CUSTOMER_ID`, `NAVER_ADS_API_KEY`, `NAVER_ADS_SECRET_KEY`); point `NAVER_SEARCHAD_ENV_FILE` at a different file to override the location, and same-named environment variables override the file. API keys are issued at 검색광고 관리시스템 → 도구 → API 사용 관리. Nothing is hardcoded — never paste keys into files. If creds are missing the script exits with a clear message.
+Read automatically from `~/niche-finder/.env` (`NAVER_ADS_CUSTOMER_ID`, `NAVER_ADS_API_KEY`, `NAVER_ADS_SECRET_KEY`); same-named environment variables override the file. Nothing is hardcoded — never paste keys into files. If creds are missing the script exits with a clear message.
 
 ## How auth works (so you can trust / debug it)
 

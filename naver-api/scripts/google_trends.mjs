@@ -26,13 +26,14 @@ try {
 
 // ---- args ----
 const argv = process.argv.slice(2);
-const opt = { keywords: [], geo: '', time: 'today 12-m', cat: 0, tz: -540, related: false, region: false, json: false, out: null };
+const opt = { keywords: [], geo: '', time: 'today 12-m', cat: 0, tz: -540, gprop: '', related: false, region: false, json: false, out: null };
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   if (a === '--geo') opt.geo = argv[++i];
   else if (a === '--time' || a === '--timeframe') opt.time = argv[++i];
   else if (a === '--cat' || a === '--category') opt.cat = Number(argv[++i]);
   else if (a === '--tz') opt.tz = Number(argv[++i]);
+  else if (a === '--gprop') opt.gprop = argv[++i];
   else if (a === '--related') opt.related = true;
   else if (a === '--region') opt.region = true;
   else if (a === '--json') opt.json = true;
@@ -65,7 +66,7 @@ async function getJSON(ctx, url) {
 function exploreUrl() {
   const req = {
     comparisonItem: opt.keywords.map(k => ({ keyword: k, geo: opt.geo, time: opt.time })),
-    category: opt.cat, property: '',
+    category: opt.cat, property: opt.gprop,
   };
   return 'https://trends.google.com/trends/api/explore?hl=en-US&tz=' + opt.tz + '&req=' + encodeURIComponent(JSON.stringify(req));
 }

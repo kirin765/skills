@@ -1,5 +1,32 @@
+.DS_Store
+*.log
+
+# generated app/run workspaces (regenerable, not skill source)
+android-app-builder-workspace/
+naver-seo-workspace/
+appfigures-workspace/
+brain-capture-workspace/
+
+# python bytecode caches
 __pycache__/
 *.pyc
+
+# API lookup caches (regenerable)
+**/.itad_cache.json
+**/.spy_cache.json
+
+# bundled commercial audio — license unverified, repo is public (see brag/assets/music/README.md)
+brag/assets/music/*.mp3
+brag/assets/sfx/**/*.ogg
+brag/assets/sfx/**/*.wav
+
+# external-plugin skills: 실체를 agents/ 로 snapshotted (2026-08-24) — root 스킬은 전부 실체 디렉토리로 추적
+
+# scraped raw corpora + derived signals (regenerable, large)
+dcinside-sales-safari/scripts/raw/
+dcinside-sales-safari/scripts/signals/
+
+# secrets — 절대 커밋 금지 (이력 purge 완료 2026-08-24)
 .env
-*.env
-.*cache*.json
+.env.*
+!.env.example

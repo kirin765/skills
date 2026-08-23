@@ -11,15 +11,15 @@ and the taste-matching math, so you never hand-roll API calls.
 
 ## Credentials (one-time)
 
-The helper reads `STEAM_API_KEY` and `STEAM_ID` from env (or fill in the `DEFAULT_*`
-placeholders at the top of `scripts/steam.py`). Both must be set for anything to work:
+The helper reads `STEAM_API_KEY` and `STEAM_ID` from env, falling back to baked-in
+defaults at the top of `scripts/steam.py`. Both must be set for anything to work:
 
 - **API key** — free at https://steamcommunity.com/dev/apikey
 - **STEAM_ID** — the 17-digit SteamID64 (https://steamid.io if unknown)
 - The profile's **Privacy → Game details must be Public**, or the owned-games list comes back empty.
-- **`ITAD_API_KEY`** (optional) — IsThereAnyDeal key for price history / all-time-low
-  (free at https://isthereanydeal.com/apps/my/). Powers the "buy now vs wait" verdict on
-  deals; without it, price-history fields are simply skipped.
+- **`ITAD_API_KEY`** (optional) — IsThereAnyDeal key for price history / all-time-low. A working
+  key is baked into `steam.py`; only needed if that one stops working (free at
+  https://isthereanydeal.com/apps/my/). Powers the "buy now vs wait" verdict on deals.
 
 Always start a session by running `python scripts/steam.py profile`. It confirms the key
 works and prints `profile_visibility` — if that isn't `public`, stop and tell the user to

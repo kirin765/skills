@@ -1,0 +1,33 @@
+{
+  "packageName": "com.kiwan.example",
+  "aab": "/Users/kiwankim/Downloads/example-store-assets/app-release.aab",
+  "track": "production",
+  "releaseStatus": "completed",
+  "releaseNotes": {
+    "ko-KR": "버그 수정 및 개선",
+    "en-US": "Bug fixes and improvements"
+  },
+  "graphicsLanguage": "ko-KR",
+  "images": {
+    "icon": "/Users/kiwankim/Downloads/example-store-assets/icon-512.png",
+    "featureGraphic": "/Users/kiwankim/Downloads/example-store-assets/feature-1024x500.png",
+    "phoneScreenshots": [
+      "/Users/kiwankim/Downloads/example-store-assets/framed/01.png",
+      "/Users/kiwankim/Downloads/example-store-assets/framed/02.png",
+      "/Users/kiwankim/Downloads/example-store-assets/framed/03.png"
+    ]
+  },
+  "listings": {
+    "ko-KR": {
+      "title": "앱 이름",
+      "shortDescription": "80자 이내 간단한 설명 (aso-audit 결과)",
+      "fullDescription": "4000자 이내 자세한 설명 (aso-audit 결과)",
+      "video": "https://www.youtube.com/watch?v=XXXXXXXXXXX (선택: 프로모션 동영상 YouTube URL)"
+    },
+    "en-US": {
+      "title": "App Name",
+      "shortDescription": "short desc <=80 chars (from aso-audit)",
+      "fullDescription": "full desc <=4000 chars (from aso-audit)"
+    }
+  }
+}

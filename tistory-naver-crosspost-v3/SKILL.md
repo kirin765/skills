@@ -1,0 +1,122 @@
+---
+name: tistory-naver-crosspost-v3
+description: |
+  v3: Cross-post a blog article to Naver Blog and Tistory with a split strategy — Naver is
+  driven via Chrome CDP (port 9222) all the way through 공개 발행 (no manual step left),
+  while Tistory involves NO CDP work at all: the post is saved as a queue JSON per
+  ~/.gemini/config/skills/tistory-post/references/agent-queue-guide.md and the standalone
+  tistory-scheduler is triggered once via its hook command. Trigger on "티스토리/네이버 v3",
+  "tistory-naver-crosspost-v3", "크로스포스트 v3", "네이버 발행까지 + 티스토리 큐".
+---
+
+# Tistory + Naver Blog Crosspost v3 (Naver full publish + Tistory queue)
+
+## What changed vs v2
+
+| | v2 | v3 |
+|---|---|---|
+| Naver | fills everything, leaves publish panel open, **user clicks 발행** | sets 공개(전체공개) and **clicks 발행 itself** — fully finished |
+| Tistory | CDP drives the editor (login, TinyMCE, DKAPTCHA…) | **no CDP** — writes a job JSON to `~/.tistory-queue/pending/` and fires the scheduler hook; a detached daemon publishes without the agent |
+
+**v3 auto-publishes Naver deliberately** (user decision 2026-07-26) — v2's "don't auto-click 발행" rule does not apply here. Naver category stays the editor default — since the 2026-07-27 category reorg that default is **생활 정보** (the renamed 낙서장), which is right for the daily SEO posts; for a different category use v2 or fix after publish. Tistory category is set via `--category` (below) — without it the scheduler assigns **생활 정보** after publish.
+
+> **Image + text only — no video.** Exactly one static hero PNG per platform; no video-embed path.
+>
+> **내부링크 URL은 두 플랫폼 모두 명시적으로 링크 처리한다 (2026-08-12).** 네이버는 본문 주입 시 URL 한 줄을 에디터의 링크 다이얼로그(`button.se-link-toolbar-button` → `input.se-custom-layer-link-input` → "링크 입력")로 클릭 가능한 `se-link`로 만든다 — 타이핑 자동 변환은 og-크롤러 비동기 재렌더가 캐럿을 옮겨 불안정(마지막 줄은 Enter가 없어 평문으로 남는 버그)해서 쓰지 않는다. 티스토리는 `fetchArticleHtml`이 `<p>` 안의 순수 URL을 `<a href target="_blank" rel="noopener">`로 감싼다.
+
+## The two paths
+
+### 1. Naver Blog (CDP, full publish)
+
+Same proven v2 flow — open `GoBlogWrite.naver`, dismiss continue-popup, type title, insert hero PNG via 사진 toolbar + native filechooser, type body line-by-line with `keyboard.type` (never paste — MacRoman mojibake; never bulk insertText — autoformat caret-jump; entities decoded via `decodeEntities`). **Body URL lines (the "함께 읽으면 좋은 글" list) are inserted as real links via the editor link dialog, not typed** — see the note at the top. Fill tags in the publish panel (spaces stripped — Naver commits on space) — **then v3 continues**: select the 공개/전체공개 radio, click the final 발행 button (`button[class*='confirm_btn']`, fallback: exact-text 발행 that isn't the panel-open `publish_btn`), wait for navigation to the published post, and log the post URL. Screenshot: `/tmp/naver-crosspost-published.png`.
+
+### 2. Tistory (queue JSON + hook, NO browser)
+
+Follows `~/.gemini/config/skills/tistory-post/references/agent-queue-guide.md` exactly:
+
+1. Build the job JSON — `title`, `source` (live URL or **absolute** local HTML path with an `<article>` tag), `hero` (**absolute path to a real `.png`** — SVG/JPG/WebP rejected), optional `tags` array, optional `scheduledAt` (ISO 8601 `+09:00`; omitted unless `--scheduled-at` given), optional `tistoryUrl` (only when explicitly passed).
+2. Save it as `~/.tistory-queue/pending/post-YYYYMMDD-<slug>.json` (folder auto-created, JSON re-parsed from disk as a validity self-check).
+3. **Fire the hook** — `node ~/.gemini/config/skills/tistory-post/scripts/tistory-scheduler.mjs hook` with **no path argument**. The command returns in <0.1s; a detached background daemon does the actual Tistory login/publish with zero agent involvement. Do NOT wait for or monitor the publish — progress lives in `~/.tistory-queue/logs/`.
+
+**Why hook gets NO path argument:** `hook <path>` runs `addJob`, which *copies* the file into `pending/`. Our JSON is already saved there, so passing its path would enqueue the same post twice → double publish. Bare `hook` only triggers the run. If you ever hand-write a JSON *outside* `pending/`, then (and only then) pass its path.
+
+## Usage
+
+```bash
+node scripts/crosspost.mjs both \
+  --source "https://sajangbu.com/blog/<slug>"   # or /abs/path/to/post.html \
+  --hero  "/abs/path/to/public/blog-images/png/<slug>.png" \
+  --title "..." \
+  --tags  "tag1,tag2,tag3,tag4,tag5"
+```
+
+| mode | does |
+|---|---|
+| `both` (default) | Naver full publish **now**, then Tistory queue + hook |
+| `naver` | Naver only, through 발행 |
+| `tistory-queue` (alias `tistory`) | tistory queue JSON + hook only — no browser at all |
+| `queue` | enqueue BOTH queues (`~/.naver-queue` + `~/.tistory-queue`), NO hook, no browser — Naver publishes at the next 09:00 run, Tistory waits in its 초안 대기열 |
+| `naver-tags` | clear + refill Naver tags on an existing open publish panel (no publish) |
+
+Optional flags: `--slug` (queue filename; default derived from source), `--category "쿠팡·스마트스토어"` (Tistory category name, goes into the queue JSON; the scheduler assigns it via the manage API right after publish — valid names: 생활 정보(default)·쿠팡·스마트스토어·앱·개발·지난 글, both blogs share this 4-category scheme since 2026-07-27), `--scheduled-at "2026-07-27T09:00:00+09:00"` (Tistory reserved publish), `--no-hook` (queue without triggering — e.g. batch-queue several posts, hook once at the end), `--tistory-url`, `--naver-url`.
+
+**Order is deliberate: Naver first, Tistory hook last.** The hook's detached daemon drives the same CDP Chrome (port 9222) as the Naver automation — firing it before/while the Naver pass runs would have two Playwright drivers fighting over one browser. Queue validation (hero exists, `.png`, `<article>` present) still runs **up front** so a bad Tistory input fails before the irreversible Naver publish.
+
+## Daily pipeline: 08:20 writer + 09:00 publisher
+
+Two launchd jobs form the full daily automation:
+
+1. **08:20 `com.brain.daily-blog-writer`** — runs `claude -p` headless with `scripts/daily-writer-prompt.md`: RSS-first dedupe (rss.blog.naver.com/kwan765.xml — the 2026-07-27 초파리트랩 duplicate incident is why RSS comes before any API), keyword research via the free stack (searchad keywordtool + blog search API + DataLab), 4-gate verdict, AEO draft + PIL hero PNG into `~/projects/misc/app-showcase/blog-drafts/`, then `queue` mode registration. Skips entirely if `~/.naver-queue/pending/` is non-empty (one-post buffer). Uses `--allowedTools` (no permission-bypass flag). Telegram report at the end.
+2. **09:00 `com.brain.daily-crosspost`** — publishes the queued post to Naver (below).
+
+## Daily 9AM auto-run (launchd) + the two queues
+
+`com.brain.daily-crosspost` (loaded in `~/Library/LaunchAgents/`, source copy in `scripts/`) runs `scripts/daily-crosspost.mjs` every day at 09:00. It consumes **`~/.naver-queue/pending/`** only:
+
+1. Picks the oldest due JSON (name sort, `scheduledAt` respected, one per day). Queue empty → logs and exits.
+2. **Naver: full 공개 발행** via this skill's `naver` mode, then moves the JSON to `~/.naver-queue/done/` with `naverPublishedAt`/`naverUrl` stamped. On failure the JSON stays in pending (retry next morning). Telegram ✅/⚠ either way.
+3. **Tistory is never touched by this job.**
+
+**Why a separate Naver queue** (user decision 2026-07-27): Naver jobs must NOT live in `~/.tistory-queue/` — any tistory hook/run moves pending JSONs to that queue's `done/`, which would silently starve the 9AM Naver publish. The two queues are fully independent: the tistory-scheduler doesn't know `~/.naver-queue/` exists, and the daily job never reads `~/.tistory-queue/`.
+
+**Feeding both queues**: `queue` mode writes the same JSON into `~/.naver-queue/pending/` AND `~/.tistory-queue/pending/`, fires nothing, opens no browser. Result: Naver publishes next 09:00; Tistory sits as a 초안 대기열 entry until a hook/scheduler run drafts it. Logs: `~/.naver-queue/logs/daily-*.log` + `daily-launchd.log`. Manual test run: `launchctl kickstart gui/$UID/com.brain.daily-crosspost`.
+
+## Preconditions
+
+1. **Naver Blog logged in** on the CDP Chrome (port 9222). No Naver login automation exists. The script auto-launches `chrome-cdp-profile` Chrome if 9222 is down and auto-opens a blank tab if the browser has zero page targets (`Browser context management is not supported` guard).
+2. **Hero PNG exists on disk** — required even for Tistory-only runs (queue spec mandates it).
+3. **Source reachable** — live URL responding, or local file wrapping its body in `<article>`.
+4. **Tistory login is NOT this skill's problem** — the background scheduler's own crosspost script handles Kakao login/DKAPTCHA. If a queue item lands in `~/.tistory-queue/failed/`, inspect its JSON (`error` field) and the logs, fix, and move it back to `pending/` (or re-run this skill).
+
+## After running — what to tell the user
+
+1. Naver: published post URL (from `[naver-publish] ✅ PUBLISHED → …`) or the failure screenshot path.
+2. Tistory: the queued JSON path + "발행 Hook을 전송해 백그라운드에서 에이전트 없이 자동 진행 중" + logs at `~/.tistory-queue/logs/`.
+3. Do **not** keep the session open waiting for the Tistory publish — fire and forget is the contract.
+
+## Failure modes
+
+| symptom | cause | fix |
+|---|---|---|
+| `[naver-publish] 공개 radio not found` | publish-panel DOM changed | it publishes with the panel's current (sticky) visibility — verify the post; update the label matcher |
+| `[naver-publish] final 발행 button not found` | `confirm_btn` hash rotated AND text lookup missed | post is still a draft with panel open — click 발행 manually; probe `document.querySelectorAll("button[class*='confirm']")` and update |
+| `[naver-publish] no navigation within 25s` | slow publish or an unhandled popup | check `/tmp/naver-publish-TIMEOUT.png`; the post may actually be live — check the blog before re-running |
+| queue JSON in `failed/` with `Missing required fields` | title/source/hero absent in JSON | shouldn't happen via this script (validated up front); fix JSON, move back to `pending/`, `node …/tistory-scheduler.mjs hook` |
+| Tistory published twice | someone passed the pending-file path to `hook` | never `hook <path>` for a file already in `pending/` — see the no-path rule above |
+| hook printed nothing / scheduler missing | `~/.gemini/config/skills/tistory-post/scripts/tistory-scheduler.mjs` moved | script dies with the expected path — fix `SCHEDULER` const |
+| Naver body mojibake / literal `&#x27;` / scrambled lines | someone reverted typing→paste or type→bulk insertText, or dropped `decodeEntities` | keep `keyboard.type` + `decodeEntities` — full history in v2 SKILL.md |
+
+## Don't do this
+
+- **Don't touch Tistory via CDP in this skill.** No opening `/manage/newpost/`, no TinyMCE, no DKAPTCHA. That whole surface belongs to the background scheduler.
+- **Don't pass the pending JSON's path to `hook`** (double-enqueue — see above).
+- **Don't wait for the Tistory publish to finish.** Hook is fire-and-forget by contract.
+- **Don't paste or bulk-insert Naver body/title text.** `keyboard.type` only (v2 gotchas all still apply).
+- **Don't store credentials.** Naver uses the existing CDP session; Tistory login lives in the scheduler's own flow.
+
+## Resources
+
+- `scripts/crosspost.mjs` — main entry
+- `references/aeo-template.md` — the AEO structure the SOURCE article must already follow (this skill copies verbatim)
+- Queue spec: `~/.gemini/config/skills/tistory-post/references/agent-queue-guide.md`
+- Naver editor selector deep-dive + history: `tistory-naver-crosspost-v2/SKILL.md`

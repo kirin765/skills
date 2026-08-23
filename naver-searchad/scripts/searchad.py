@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Naver Search Ads API client — HMAC-signed REST, stdlib only.
 
-Credentials are read from ~/.naver-searchad.env (NAVER_ADS_CUSTOMER_ID /
-NAVER_ADS_API_KEY / NAVER_ADS_SECRET_KEY); override the file location with
-NAVER_SEARCHAD_ENV_FILE. Env vars of the same name override the file, so
-nothing is hardcoded here.
+Credentials are read from ~/niche-finder/.env (NAVER_ADS_CUSTOMER_ID /
+NAVER_ADS_API_KEY / NAVER_ADS_SECRET_KEY). Env vars of the same name override
+the file, so nothing is hardcoded here.
 
 Read commands (campaigns, adgroups, keywords, stats, keywordtool, get) are
 safe. Write commands (bid, on, off, post, put, delete) change a live account
@@ -24,7 +23,7 @@ import urllib.parse
 import urllib.request
 
 BASE_URL = "https://api.searchad.naver.com"
-ENV_PATH = os.environ.get("NAVER_SEARCHAD_ENV_FILE", os.path.expanduser("~/.naver-searchad.env"))
+ENV_PATH = os.path.expanduser("~/niche-finder/.env")
 
 
 def load_creds():

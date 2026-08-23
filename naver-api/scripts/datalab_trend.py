@@ -4,9 +4,9 @@
 Calls https://openapi.naver.com/v1/datalab/search and prints relative search
 popularity (0-100 ratio) over time for one or more keyword groups.
 
-Credentials: NAVER_DATALAB_CLIENT_ID / NAVER_DATALAB_CLIENT_SECRET env vars.
-Register a free app at https://developers.naver.com/apps/ with the 데이터랩(검색어트렌드)
-API enabled to get a client id/secret.
+Credentials resolve in this order:
+  1. NAVER_DATALAB_CLIENT_ID / NAVER_DATALAB_CLIENT_SECRET env vars
+  2. baked-in defaults below (the user's `qqqqq` app, DATALAB scope enabled)
 
 Examples
   # one group, last 12 months (monthly)
@@ -32,16 +32,16 @@ from urllib.error import HTTPError, URLError
 
 ENDPOINT = "https://openapi.naver.com/v1/datalab/search"
 
+# Default app: developers.naver.com "qqqqq" — scopes DATALAB, SEARCH, DATALAB_SI.
+DEFAULT_CLIENT_ID = "Z1K1sSe3liN58LVB4c4O"
+DEFAULT_CLIENT_SECRET = "dDWAN4jwul"
+
+
 def creds() -> tuple[str, str]:
-    cid = os.environ.get("NAVER_DATALAB_CLIENT_ID")
-    secret = os.environ.get("NAVER_DATALAB_CLIENT_SECRET")
-    if not cid or not secret:
-        sys.exit(
-            "Missing credentials. Set NAVER_DATALAB_CLIENT_ID / NAVER_DATALAB_CLIENT_SECRET.\n"
-            "Register a free app at https://developers.naver.com/apps/ with the\n"
-            "데이터랩(검색어트렌드) API enabled."
-        )
-    return cid, secret
+    return (
+        os.environ.get("NAVER_DATALAB_CLIENT_ID", DEFAULT_CLIENT_ID),
+        os.environ.get("NAVER_DATALAB_CLIENT_SECRET", DEFAULT_CLIENT_SECRET),
+    )
 
 
 def default_range(unit: str, weeks: int, months: int) -> tuple[str, str]:

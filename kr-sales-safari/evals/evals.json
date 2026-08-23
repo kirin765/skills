@@ -1,0 +1,82 @@
+{
+  "skill_name": "kr-sales-safari",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "vibe coding, Claude Code 쓰는 한국 개발자들이 어떤 점이 불편한지 Velog랑 Disquiet에서 찾아줘. SaaS 아이디어 뽑고 싶어.",
+      "expected_output": "Velog GraphQL API와 Disquiet에서 실제 인용문을 수집하고, 고통 후보 클러스터를 3개 이상 제시하며, 각 후보에 4-체크박스 평가가 포함된 Sales Safari 결과",
+      "assertions": [
+        {
+          "text": "Velog GraphQL API를 실제로 호출했는가 (api.velog.io/graphql POST 요청)",
+          "description": "스킬이 하드코딩 예시가 아닌 실제 API를 호출해야 함"
+        },
+        {
+          "text": "모든 인용문에 URL이 포함되어 있는가",
+          "description": "Mom Test 원칙: URL 없는 인용은 허용 안 됨"
+        },
+        {
+          "text": "인용문이 한국어 원문 그대로인가 (LLM이 생성하거나 요약한 문장이 아닌)",
+          "description": "Mom Test 핵심 원칙"
+        },
+        {
+          "text": "고통 후보가 3개 이상 제시됐는가",
+          "description": "클러스터링 단계 완료 여부 확인"
+        },
+        {
+          "text": "각 후보에 4-체크박스가 포함되어 있는가",
+          "description": "결정 게이트 적용 여부 확인"
+        },
+        {
+          "text": "Disquiet API 또는 웹 검색을 시도했는가",
+          "description": "Velog만 쓰지 않고 여러 소스를 활용해야 함"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "주제 없이 한국 개발자/스타트업 커뮤니티에서 요즘 자주 언급되는 불편함이나 해결 안 된 문제들 찾아줘. 광범위하게 탐색해서 SaaS 아이디어 3-5개 뽑아줘.",
+      "expected_output": "특정 주제 없이 광범위 탐색을 수행하고, 서로 다른 도메인에서 고통 후보를 발굴해 SaaS 아이디어로 연결한 결과",
+      "assertions": [
+        {
+          "text": "광범위 탐색 모드로 실행됐는가 (주제 특정 없이 여러 키워드 시도)",
+          "description": "주제 없음 모드 동작 확인"
+        },
+        {
+          "text": "서로 다른 도메인의 후보가 포함됐는가 (단일 주제에 편중되지 않음)",
+          "description": "광범위 탐색이 실제로 다양한 영역을 커버해야 함"
+        },
+        {
+          "text": "각 SaaS 아이디어 후보에 현재 대안(기존 툴)이 명시됐는가",
+          "description": "갭 분석 필수 요소"
+        },
+        {
+          "text": "실패하거나 차단된 소스가 명시됐는가",
+          "description": "투명성 — 사용자가 접근 못 한 소스를 알아야 함"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "1인 개발자들이 SaaS 제품 만들 때 마케팅/고객 획득 과정에서 겪는 불편함을 한국 커뮤니티에서 조사해줘. 특히 Disquiet랑 Velog 위주로.",
+      "expected_output": "마케팅/고객 획득 도메인에 집중해 Disquiet와 Velog에서 1인 개발자 관련 고통 신호를 수집하고, saas-viability-kr 스킬로 이어지는 후보를 제시한 결과",
+      "assertions": [
+        {
+          "text": "마케팅/고객 획득 관련 키워드로 검색했는가",
+          "description": "주제 집중도 확인"
+        },
+        {
+          "text": "Disquiet를 시도했는가 (성공 또는 실패 명시)",
+          "description": "사용자가 명시적으로 요청한 소스"
+        },
+        {
+          "text": "saas-viability-kr 스킬 연계가 출력에 언급됐는가",
+          "description": "워크플로우 연결 — 이 스킬의 다음 단계"
+        },
+        {
+          "text": "고유 인원 카운트가 출력에 포함됐는가",
+          "description": "Mom Test 원칙: 동일인 중복 방지"
+        }
+      ]
+    }
+  ]
+}

@@ -15,13 +15,14 @@ Usage:
     python steam.py candidates [--limit M]  # unowned games ranked by taste fit
     python steam.py backlog [--limit M]     # owned-but-unplayed ranked by taste fit
 
-Credentials: STEAM_API_KEY and STEAM_ID env vars (or fill in the DEFAULT_*
-placeholders below). STEAM_ID is the 17-digit SteamID64. A 401/empty owned list
-usually means the key is wrong or the profile's "Game details" is not public.
+Credentials: STEAM_API_KEY and STEAM_ID env vars (else the baked-in defaults
+below). STEAM_ID is the 17-digit SteamID64. A 401/empty owned list usually means
+the key is wrong or the profile's "Game details" is not public.
 """
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.parse
@@ -29,18 +30,21 @@ import urllib.request
 from pathlib import Path
 
 # Fill these in (or export STEAM_API_KEY / STEAM_ID) so the skill works without env.
-DEFAULT_API_KEY = "PUT_YOUR_STEAM_API_KEY"
-DEFAULT_STEAM_ID = "PUT_YOUR_STEAMID64"
+DEFAULT_API_KEY = "8A5F55D8AEAA613F7BD1C32E6EA889BB"
+DEFAULT_STEAM_ID = "76561198360792673"
 
 API_KEY = os.environ.get("STEAM_API_KEY", DEFAULT_API_KEY)
 STEAM_ID = os.environ.get("STEAM_ID", DEFAULT_STEAM_ID)
 
 WEB_API = "https://api.steampowered.com"
 SPY_API = "https://steamspy.com/api.php"
+STORE_SEARCH = "https://store.steampowered.com/search/results/"
+STORE_TAGDATA = "https://store.steampowered.com/tagdata/populartags/english"
 ITAD_API = "https://api.isthereanydeal.com"
-ITAD_KEY = os.environ.get("ITAD_API_KEY", "")
+ITAD_KEY = os.environ.get("ITAD_API_KEY", "bc9ddcdeadab572423b5f7be5e878ca60dfb0655")
 CACHE = Path(__file__).resolve().parent / ".spy_cache.json"
 ITAD_CACHE = Path(__file__).resolve().parent / ".itad_cache.json"
+REVIEW_CACHE = Path(__file__).resolve().parent / ".review_cache.json"
 
 
 def _get(url, retries=3):
@@ -136,20 +140,28 @@ def recent():
 
 # ---------- SteamSpy ----------
 
-def _load_cache():
-    if CACHE.exists():
+def _load_json(path):
+    if path.exists():
         try:
-            return json.loads(CACHE.read_text())
+            return json.loads(path.read_text())
         except Exception:
             return {}
     return {}
 
 
-def _save_cache(c):
+def _save_json(path, c):
     try:
-        CACHE.write_text(json.dumps(c))
+        path.write_text(json.dumps(c))
     except Exception:
         pass
+
+
+def _load_cache():
+    return _load_json(CACHE)
+
+
+def _save_cache(c):
+    _save_json(CACHE, c)
 
 
 def spy(appid, cache=None):
@@ -173,11 +185,111 @@ def spy(appid, cache=None):
     return rec
 
 
-def tag_games(tag):
-    """Games carrying a SteamSpy tag (1 req / 60s server-side — call sparingly)."""
-    t = urllib.parse.quote(tag)
-    data = _get(f"{SPY_API}?request=tag&tag={t}") or {}
-    return data  # dict: appid -> {name, positive, negative, ...}
+_TAG_IDS = None
+
+
+def _tag_ids():
+    """Steam's official tag name -> tagid map (~430 tags)."""
+    global _TAG_IDS
+    if _TAG_IDS is None:
+        _TAG_IDS = {t["name"]: t["tagid"] for t in (_get(STORE_TAGDATA) or [])}
+    return _TAG_IDS
+
+
+def _resolve_tag(tag):
+    ids = _tag_ids()
+    if tag in ids:
+        return ids[tag]
+    # SteamSpy wrote some tags with hyphens/spaces swapped ("Base-Building" vs "Base Building")
+    norm = {k.lower().replace("-", " "): v for k, v in ids.items()}
+    return norm.get(tag.lower().replace("-", " "))
+
+
+_ROW_SPLIT = '<a href="https://store.steampowered.com/app/'
+_RE_APPID = re.compile(r'data-ds-appid="(\d+)"')
+_RE_NAME = re.compile(r'<span class="title">([^<]*)</span>')
+_RE_TAGIDS = re.compile(r'data-ds-tagids="\[([\d,]*)\]"')
+_RE_REVIEWS = re.compile(r"(\d+)% of the ([\d,]+) user reviews")
+
+
+def app_reviews(appid, cache=None):
+    """All-language review counts for one app (~235ms, cached).
+
+    Store search only ever reports reviews in the requested language, which
+    undercounts anything big outside English (Dyson Sphere Program: 25k English vs
+    91k total) and would bury it. Review gating and ranking need the real numbers.
+    """
+    own = cache is None
+    if own:
+        cache = _load_json(REVIEW_CACHE)
+    key = str(appid)
+    if key in cache:
+        return cache[key]
+    data = _get(f"https://store.steampowered.com/appreviews/{appid}"
+                f"?json=1&language=all&purchase_type=all&num_per_page=0") or {}
+    q = data.get("query_summary") or {}
+    rec = [q.get("total_positive", 0), q.get("total_negative", 0)]
+    cache[key] = rec
+    if own:
+        _save_json(REVIEW_CACHE, cache)
+    return rec
+
+
+def tag_games(tag, limit=100, prefilter=30):
+    """Games carrying a tag, from Steam's own store search.
+
+    SteamSpy's request=tag endpoint has been returning {} for every tag, so this
+    reads the first-party source instead. Review counts in the search HTML are
+    English-only, so anything clearing `prefilter` gets its true counts topped up
+    from app_reviews(). The prefilter is deliberately low: it only has to drop
+    shovelware before we spend a request per game.
+    """
+    tagid = _resolve_tag(tag)
+    if tagid is None:
+        return {}
+    out = {}
+    for start in range(0, limit, 100):
+        # category1=998 restricts to base games; without it the results are full of
+        # DLC for games the user already owns, which the owned-filter can't catch.
+        url = (f"{STORE_SEARCH}?query&start={start}&count=100&tags={tagid}"
+               f"&category1=998&infinite=1&cc=kr&l=english")
+        data = _get(url) or {}
+        html = data.get("results_html") or ""
+        rows = html.split(_ROW_SPLIT)[1:]
+        if not rows:
+            break
+        for row in rows:
+            m = _RE_APPID.search(row)
+            if not m:
+                continue  # bundles/packages carry no appid
+            appid = int(m.group(1))
+            rev = _RE_REVIEWS.search(row)
+            if rev:
+                pct = int(rev.group(1))
+                total = int(rev.group(2).replace(",", ""))
+                positive = round(total * pct / 100)
+            else:
+                positive = total = 0  # too few reviews for Steam to summarise
+            name = _RE_NAME.search(row)
+            tids = _RE_TAGIDS.search(row)
+            out[appid] = {
+                "appid": appid,
+                "name": name.group(1).strip() if name else None,
+                "positive": positive,
+                "negative": total - positive,
+                "tagids": [int(x) for x in tids.group(1).split(",") if x] if tids else [],
+            }
+        if len(rows) < 100:
+            break
+    rcache = _load_json(REVIEW_CACHE)
+    for rec in out.values():
+        if rec["positive"] + rec["negative"] < prefilter:
+            continue
+        p, n = app_reviews(rec["appid"], rcache)
+        if p + n:
+            rec["positive"], rec["negative"] = p, n
+    _save_json(REVIEW_CACHE, rcache)
+    return out  # dict: appid -> {name, positive, negative, ...}
 
 
 # ---------- Composites ----------
@@ -321,9 +433,6 @@ def itad_lows(appids, country="KR"):
     Returns {appid: {historic_low, historic_low_date, current_price, current_cut,
     is_historic_low, pct_above_low}} — None for games ITAD can't resolve.
     """
-    if not ITAD_KEY:
-        sys.exit("Price history needs an IsThereAnyDeal key. Set ITAD_API_KEY "
-                 "(free at https://isthereanydeal.com/apps/my/).")
     country = country.upper()
     cache = json.loads(ITAD_CACHE.read_text()) if ITAD_CACHE.exists() else {}
     ids = {aid: _itad_id(aid, cache) for aid in appids}
@@ -365,7 +474,7 @@ def itad_lows(appids, country="KR"):
 
 def _enrich_itad(records, country="KR"):
     """Attach ITAD price-history fields to records that carry an 'appid'."""
-    if not records or not ITAD_KEY:
+    if not records:
         return records
     lows = itad_lows([r["appid"] for r in records], country)
     for r in records:
