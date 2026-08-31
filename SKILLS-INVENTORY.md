@@ -1,6 +1,6 @@
 # Claude Code Skills Inventory
 
-생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills` · 갱신: 2026-08-24 (플러그인 스킬 실체 포함 구조로 확장, `app-in-toss` 신규)
+생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills` · 갱신: 2026-08-31 (`english-scan` 신규)
 
 분류 기준: **A. 사용자 제작**(워크플로우 특화·한국어 설명·전용 scripts 보유) / **B. 설치 스킬팩**(마켓/번들, 영문·범용) / **C. 플러그인 네임스페이스 스킬**(`plugin:skill` 형태, `~/.agents/skills` 실체 — `agents/`에 스냅샷) / **D. 빌트인 명령**.
 (A/B 경계는 휴리스틱 — 일부는 추정.)
@@ -65,6 +65,7 @@
 | 스킬 | 용도 |
 |---|---|
 | `conclave` | 멀티 LLM 카운슬(익명 토론·합의) |
+| `english-scan` | 세션별 영어 로그 — 사용자 본인이 쓴 메시지만 `~/.dsh/english-log/corpus.md`에 적립(에이전트 답변 제외). "what's the problem with my english?" 류 요청 시 코퍼스로 오류 교정(문법·어휘·자연스러움, before→after) + 실력 프로파일(강점·반복 약점·수준 추정·이전 대비 변화)을 `analysis.md`에 기록 |
 | `openai-assist` | OpenAI 보조 호출 |
 | `find-skills` | 스킬 탐색 헬퍼 |
 | `contribute-catalog` | 스킬 카탈로그 기여 |
