@@ -69,17 +69,41 @@ description: 범용 인증세션 브라우저 자동화 — 전용 스킬이 없
 
 Engine A 로 안 되는 두 경우에만. 사전 조건·코드 스니펫은 references 참고.
 
-> **이 머신엔 항상 Chrome 이 두 개 있을 수 있다 — 절대 혼동하지 말 것.**
+> **이 머신엔 항상 브라우저가 두 개 있을 수 있다 — 절대 혼동하지 말 것.**
 > - **메인 Chrome** — 사용자가 평소 쓰는 창(Default 프로파일). Engine A(확장) 이 여기 붙는다. CDP 포트 없음. Engine B 작업에서 이 창은 신경 쓸 필요도, 건드릴 필요도 없다.
 > - **CDP Chrome** — `$HOME/chrome-cdp-profile` 전용 프로파일로 `--remote-debugging-port=9222` 로 뜬 것. Engine B 전용. 다른 cdp-* 스킬(x-cdp-search 등)과 공유하는 동일 프로파일.
 > - 둘을 구분하는 유일한 기준은 **`curl :9222` 응답 여부**다. `pgrep "Google Chrome"`/`ps aux | grep Chrome` 로 "떠 있나"를 판단하지 말 것 — 메인 Chrome 은 항상 떠 있을 수 있고, 그것과 CDP Chrome 이 떠 있는지는 무관하다.
 
+### 환경 노트 — Omarchy/Hyprland (Linux, 실측 2026-08-23)
+
+이 환경에선 CDP 전용 chromium 을 **반드시 `--class=cdpchrome` 으로 띄운다**. 메인
+브라우저도 같은 chromium 바이너리라, 클래스가 같으면 Hyprland 가 두 창을 구분하지
+못해 CDP 창이 열릴 때마다 포커스·작업공간을 뺏는다. `~/.config/hypr/hyprland.lua`
+에 아래 규칙이 있어야 하고(사용자 환경에 이미 적용됨), 이 규칙은 클래스가
+`cdpchrome` 일 때만 걸린다:
+
+```lua
+-- CDP 전용 chromium: 열릴 때 포커스 안 뺏음, 작업공간 98로 격리 (실측 검증)
+o.window("cdpchrome", { no_initial_focus = true, float = true, workspace = "98 silent" })
+```
+
+- `probe.py` 자동 기동도 이 방식(`--class=cdpchrome`)으로 띄운다. 직접 띄울 때도
+  반드시 붙인다. 빼먹으면 포커스 뺏김 문제가 되살아난다.
+- 클래스 확인: `hyprctl clients | grep "class: cdpchrome"` — 아무것도 안 나오면
+  규칙 미적용 상태.
+- 이 규칙이 없는 다른 Linux 데스크톱은 `--headless=new`(창 없음) 또는 Xvfb(가상
+  디스플레이) 로 대체 가능. 상세: [chrome-setup](references/chrome-setup.md).
+
 ### B 사전 조건
-1. **CDP 9222 확보** — `python3 scripts/probe.py` 를 먼저 돌린다. 미응답이면 스크립트가 **CDP Chrome 을 자동으로 백그라운드 기동**하고(메인 Chrome 은 건드리지 않음) 최대 15초 재확인한다. 그래도 실패하면(Chrome 미설치 경로 다름, 권한 문제 등) 그때만 [chrome-setup](references/chrome-setup.md) 명령으로 사용자에게 직접 띄워달라고 요청 — 매번 먼저 물어보지 말고 자동 기동을 먼저 시도.
+1. **CDP 9222 확보** — `python3 scripts/probe.py` 를 먼저 돌린다. 미응답이면 스크립트가 **CDP 전용 브라우저를 자동으로 백그라운드 기동**하고(메인 브라우저는 건드리지 않음) 최대 15초 재확인한다. macOS 는 Google Chrome, Linux(Omarchy/Hyprland) 는 chromium + `--class=cdpchrome` 으로 띄운다(위 환경 노트). 그래도 실패하면 그때만 [chrome-setup](references/chrome-setup.md) 의 수동 명령으로 사용자에게 직접 띄워달라고 요청 — 매번 먼저 물어보지 말고 자동 기동을 먼저 시도.
    ```bash
    # 자동 기동이 실패했을 때만 사용자에게 요청할 수동 명령
+   # macOS:
    /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
      --remote-debugging-port=9222 --user-data-dir="$HOME/chrome-cdp-profile"
+   # Linux(Omarchy/Hyprland) — --class=cdpchrome 필수:
+   chromium --class=cdpchrome --remote-debugging-port=9222 \
+     --user-data-dir="$HOME/chrome-cdp-profile" &
    ```
    > Chrome 148+ 는 탭 0개면 `connect_over_cdp` 가 깨진다 — 붙기 전 `PUT /json/new` 로 탭 하나를 미리 만들어라(`ensure_page_target` 패턴, `probe.py` 가 자동 처리).
 2. **Playwright 설치** — `python3 -c "import playwright"` 또는 Node `playwright`.

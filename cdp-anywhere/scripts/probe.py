@@ -35,8 +35,25 @@ CDP_VERSION = "http://localhost:9222/json/version"
 CDP_TABS = "http://localhost:9222/json"
 CDP_PROFILE_DIR = "$HOME/chrome-cdp-profile"
 
-# macOS 전용 — 이 스킬은 darwin 환경 기준. 다른 OS는 chrome-setup.md 안내로 폴백.
+# macOS: Google Chrome. Linux(Omarchy/Hyprland): chromium + --class=cdpchrome 필수.
+# --class 는 Wayland app_id 까지 바꿔 Hyprland 가 CDP 창을 메인 브라우저와 구분
+# 할 수 있게 한다(실측 2026-08-23). 상세는 references/chrome-setup.md.
 MACOS_CHROME_BIN = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+LINUX_BROWSER_NAMES = ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable")
+
+
+def find_browser_bin() -> str | None:
+    """현재 OS 에서 CDP 전용으로 띄울 브라우저 실행파일을 찾는다."""
+    import os
+    import shutil
+
+    if sys.platform == "darwin":
+        return MACOS_CHROME_BIN if os.path.exists(MACOS_CHROME_BIN) else None
+    for name in LINUX_BROWSER_NAMES:
+        p = shutil.which(name)
+        if p:
+            return p
+    return None
 
 
 def probe_cdp_http() -> tuple[bool, str, dict | None]:
@@ -51,39 +68,54 @@ def probe_cdp_http() -> tuple[bool, str, dict | None]:
         return False, f"CDP probe 오류: {e}", None
 
 
-def launch_cdp_chrome_macos() -> tuple[bool, str]:
-    """CDP 전용 Chrome(chrome-cdp-profile, 9222) 을 백그라운드로 띄운다.
+def launch_cdp_chrome() -> tuple[bool, str]:
+    """CDP 전용 브라우저(chrome-cdp-profile, 9222) 를 백그라운드로 띄운다.
 
-    메인 Chrome(사용자 평소 창)은 절대 건드리지 않는다 — 별도 --user-data-dir
-    이라 이미 메인 Chrome 이 떠 있어도 충돌 없이 공존 가능. 실행 후 최대 ~15초
+    메인 브라우저(사용자 평소 창)는 절대 건드리지 않는다 — 별도 --user-data-dir
+    이라 이미 메인 브라우저가 떠 있어도 충돌 없이 공존 가능. 실행 후 최대 ~15초
     폴링해 9222 가 응답할 때까지 기다린다.
+
+    Linux(Omarchy/Hyprland) 에서는 --class=cdpchrome 을 붙인다. 메인 브라우저도
+    같은 chromium 바이너리라 클래스가 같으면 Hyprland 가 둘을 구분하지 못해,
+    CDP 창이 열릴 때마다 포커스·작업공간을 뺏는다. hyprland.lua 의
+    o.window("cdpchrome", { no_initial_focus = ... }) 규칙과 짝을 이룬다.
     """
     import os
 
     profile_dir = os.path.expanduser("~/chrome-cdp-profile")
+    binary = find_browser_bin()
+    if not binary:
+        return False, "CDP 브라우저 실행파일 없음 (macOS: Google Chrome, Linux: chromium)"
+
+    cmd = [
+        binary,
+        "--remote-debugging-port=9222",
+        f"--user-data-dir={profile_dir}",
+    ]
+    if sys.platform != "darwin":
+        cmd += [
+            "--class=cdpchrome",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "about:blank",
+        ]
     try:
         subprocess.Popen(
-            [
-                MACOS_CHROME_BIN,
-                "--remote-debugging-port=9222",
-                f"--user-data-dir={profile_dir}",
-            ],
+            cmd,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             start_new_session=True,
         )
-    except FileNotFoundError:
-        return False, f"Chrome 실행파일 없음: {MACOS_CHROME_BIN}"
     except Exception as e:
-        return False, f"CDP Chrome 기동 실패: {e}"
+        return False, f"CDP 브라우저 기동 실패: {e}"
 
     for _ in range(15):
         time.sleep(1)
         ok, _, _ = probe_cdp_http()
         if ok:
-            return True, "CDP Chrome 자동 기동 성공"
-    return False, "CDP Chrome 을 띄웠지만 15초 내 9222 응답 없음 (첫 기동은 프로파일 초기화로 느릴 수 있음 — 잠시 후 재시도)"
+            return True, "CDP 브라우저 자동 기동 성공"
+    return False, "CDP 브라우저를 띄웠지만 15초 내 9222 응답 없음 (첫 기동은 프로파일 초기화로 느릴 수 있음 — 잠시 후 재시도)"
 
 
 def ensure_page_target() -> None:
@@ -174,13 +206,13 @@ def main() -> int:
     # 1. CDP HTTP 응답
     ok, msg, ver = probe_cdp_http()
 
-    # 1b. 안 떠 있으면 backup 으로 자동 기동 시도 (macOS). 실패해도 사용자에게 물어보기
-    # 전에 한 번은 스스로 띄워본다 — "메인 Chrome" 은 절대 건드리지 않고 별도
-    # chrome-cdp-profile 로만 띄우므로 안전.
-    if not ok and not args.no_autolaunch and sys.platform == "darwin":
+    # 1b. 안 떠 있으면 자동 기동 시도. 실패해도 사용자에게 물어보기 전에 한 번은
+    # 스스로 띄워본다 — "메인 브라우저" 는 절대 건드리지 않고 별도
+    # chrome-cdp-profile 로만 띄우므로 안전. (macOS/Linux 공통, 2026-08-23)
+    if not ok and not args.no_autolaunch:
         if not args.json:
-            print("⏳ CDP 9222 미응답 — CDP 전용 Chrome(chrome-cdp-profile) 자동 기동 시도 중...")
-        launch_ok, launch_msg = launch_cdp_chrome_macos()
+            print("⏳ CDP 9222 미응답 — CDP 전용 브라우저(chrome-cdp-profile) 자동 기동 시도 중...")
+        launch_ok, launch_msg = launch_cdp_chrome()
         report["autolaunched"] = launch_ok
         if not args.json:
             print(("✅ " if launch_ok else "❌ ") + launch_msg)
@@ -197,12 +229,17 @@ def main() -> int:
         else:
             print(f"❌ CDP: {msg}")
             print()
-            print("자동 기동도 실패 — 사용자에게 CDP 전용 Chrome 을 직접 띄워달라고 요청:")
-            print("  /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome \\")
-            print("    --remote-debugging-port=9222 \\")
-            print("    --user-data-dir=\"$HOME/chrome-cdp-profile\"")
+            print("자동 기동도 실패 — 사용자에게 CDP 전용 브라우저를 직접 띄워달라고 요청:")
+            if sys.platform == "darwin":
+                print("  /Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome \\")
+                print("    --remote-debugging-port=9222 \\")
+                print("    --user-data-dir=\"$HOME/chrome-cdp-profile\"")
+            else:
+                print("  chromium --class=cdpchrome --remote-debugging-port=9222 \\")
+                print("    --user-data-dir=\"$HOME/chrome-cdp-profile\" &")
             print()
-            print("(메인/평소 Chrome 이 이미 떠 있는 건 무관 — 별도 프로파일이라 공존함)")
+            print("Linux(Omarchy/Hyprland) 는 --class=cdpchrome 필수 — 없으면 포커스 뺏김 규칙이 안 걸린다. 상세: references/chrome-setup.md")
+            print("(메인/평소 브라우저가 이미 떠 있는 건 무관 — 별도 프로파일이라 공존함)")
         return 2
 
     # 2. page target 보장 (windowless Chrome 이면 connect_over_cdp 가 깨지므로)
