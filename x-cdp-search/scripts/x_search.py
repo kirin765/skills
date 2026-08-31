@@ -80,6 +80,13 @@ def extract_tweets(payload: dict, seen_ids: set) -> tuple[list, str | None]:
                     result = item.get("tweet_results", {}).get("result", {})
                     if "rest_id" not in result and "tweet" in result:
                         result = result["tweet"]
+                    # 광고 제외 — promotedMetadata 는 tweet result 가 아니라 itemContent 레벨에 실린다
+                    if (
+                        str(entry.get("entryId", "")).startswith("promoted-")
+                        or item.get("promotedMetadata")
+                        or result.get("promotedMetadata")
+                    ):
+                        continue
                     tweet_id = result.get("rest_id")
                     if not tweet_id or tweet_id in seen_ids:
                         continue

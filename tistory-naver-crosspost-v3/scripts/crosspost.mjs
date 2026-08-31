@@ -453,15 +453,37 @@ async function insertNaverLink(page, url) {
 async function openNaverPublishPanel(editor, page) {
   const panelOpen = await editor.evaluate(() => /태그 편집/.test(document.body.innerText || ""));
   if (panelOpen) return true;
-  try {
+  // 열린 sub-layer(주제 설정 등)가 패널을 덮고 발행 버튼 클릭을 가로막으면 먼저 닫는다.
+  // (2026-08-27 실측: topic-not-found 후 레이어 잔존 → 발행 차단)
+  await closeNaverSubLayer(editor, page);
+  if (await editor.evaluate(() => /태그 편집/.test(document.body.innerText || ""))) {
+    console.log("[naver] publish panel opened (after closing sub-layer)");
+    return true;
+  }
+  const clickPanel = async () => {
     const btn = editor.locator("button.publish_btn__m9KHH, button[class*='publish_btn'], button[class*='publish']").first();
     await btn.click({ timeout: 3000 });
     await page.waitForTimeout(1500);
+  };
+  try {
+    await clickPanel();
     console.log("[naver] publish panel opened");
     return true;
   } catch (e) {
-    console.log("[naver] could not open publish panel:", e.message);
-    return false;
+    // 아직 가로막는 레이어가 남아 있으면 한 번 더 닫고 재시도
+    await closeNaverSubLayer(editor, page);
+    if (await editor.evaluate(() => /태그 편집/.test(document.body.innerText || ""))) {
+      console.log("[naver] publish panel opened (after closing sub-layer)");
+      return true;
+    }
+    try {
+      await clickPanel();
+      console.log("[naver] publish panel opened");
+      return true;
+    } catch (e2) {
+      console.log("[naver] could not open publish panel:", e2.message);
+      return false;
+    }
   }
 }
 
@@ -497,6 +519,25 @@ async function doNaverTags(page) {
   } catch (e) {
     console.log("[naver-tags] failed:", e.message);
   }
+}
+
+// Close any open publish-panel sub-layer (주제 설정 등) so it never blocks the 발행
+// button. Scoped to the layer that owns ok_btn — a generic `cancel_btn` query can hit a
+// hidden dropdown's button and no-op, leaving the layer open (2026-08-27 실측: 잘못된
+// 주제명 "취미·여가" → topic-not-found → 레이어 잔존 → 발행 버튼 클릭 차단).
+async function closeNaverSubLayer(editor, page) {
+  const clicked = await editor.evaluate(() => {
+    const ok = document.querySelector("button[class*='ok_btn']");
+    const layer = ok ? ok.closest("[class*='layer_popup']") : null;
+    const scope = layer || document;
+    const btn = [...scope.querySelectorAll("button[class*='cancel_btn'], button[class*='close_btn'], button[aria-label*='닫기']")].pop();
+    if (btn) { btn.click(); return true; }
+    return false;
+  });
+  if (clicked) { await page.waitForTimeout(500); return true; }
+  try { await page.keyboard.press("Escape"); } catch {}
+  await page.waitForTimeout(500);
+  return false;
 }
 
 // Set 게시판(카테고리) and 주제 분류 in the publish panel. Both optional; exact-text match
@@ -545,19 +586,25 @@ async function setNaverCategoryTopic(page) {
         while (c && c.querySelectorAll("label[class*='radio_label']").length === 0) c = c.parentElement;
         if (!c) return "labels-not-found";
         const norm = s => (s || "").replace(/\s+/g, "");
-        const lab = [...c.querySelectorAll("label[class*='radio_label']")]
-          .find(l => norm(l.textContent) === norm(want));
-        if (!lab) return "topic-not-found";
-        lab.click();
-        return "clicked";
+        const labels = [...c.querySelectorAll("label[class*='radio_label']")];
+        const exact = labels.find(l => norm(l.textContent) === norm(want));
+        if (exact) { exact.click(); return "clicked"; }
+        // 목록 밖 조합(예: "취미·여가" → 실제 옵션 "취미", 2026-08-27) — 후보가 유일할 때만
+        const fuzzy = labels.filter(l => {
+          const t = norm(l.textContent);
+          return t && (want.includes(t) || (t.includes(want) && want.length > 1));
+        });
+        if (fuzzy.length === 1) { fuzzy[0].click(); return "clicked-fuzzy"; }
+        if (fuzzy.length > 1) return "ambiguous";
+        return "topic-not-found";
       }, NAVER_TOPIC);
       await page.waitForTimeout(400);
-      if (r === "clicked") {
+      if (r === "clicked" || r === "clicked-fuzzy") {
         await editor.evaluate(() => document.querySelector("button[class*='ok_btn']")?.click());
         await page.waitForTimeout(600);
       } else {
-        // close the layer so it doesn't block the 발행 button
-        await editor.evaluate(() => document.querySelector("button[class*='cancel_btn']")?.click());
+        // 목록에 없는 주제 → 레이어를 확실히 닫아 발행 버튼을 가리지 않게 한다
+        await closeNaverSubLayer(editor, page);
       }
       const now = await editor.evaluate(() =>
         (document.querySelector("div[class*='option_theme']")?.textContent || "").trim());
@@ -618,7 +665,10 @@ async function publishNaver(page) {
       } catch {}
     }
     const u = page.url();
-    if (!/GoBlogWrite|PostWriteForm/.test(u) && /blog\.naver\.com/.test(u)) {
+    // 발행 완료 신호는 글 URL(blog.naver.com/<아이디>/<숫자글번호>)뿐이다. "Write" 없는
+    // 화면이 아직 작성 탭(Redirect=Write)일 수 있으므로 형식을 엄격히 본다
+    // (2026-08-27: Redirect=Write URL을 발행 URL로 오판한 실측).
+    if (/blog\.naver\.com\/[^/?#]+\/\d+/.test(u)) {
       console.log("[naver-publish] ✅ PUBLISHED →", u);
       return u;
     }

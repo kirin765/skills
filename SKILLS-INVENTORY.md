@@ -1,6 +1,6 @@
 # Claude Code Skills Inventory
 
-생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills` · 갱신: 2026-08-31 (`english-scan` 신규)
+생성: 2026-06-10 · 머신: kiwankim · 스킬 루트: `~/.claude/skills` · 갱신: 2026-08-31 (원격 `kirin765/skills` 전환·신규 5종: english-scan·google-tasks·kiwoom-trade-api·send-sms·tuya-light)
 
 분류 기준: **A. 사용자 제작**(워크플로우 특화·한국어 설명·전용 scripts 보유) / **B. 설치 스킬팩**(마켓/번들, 영문·범용) / **C. 플러그인 네임스페이스 스킬**(`plugin:skill` 형태, `~/.agents/skills` 실체 — `agents/`에 스냅샷) / **D. 빌트인 명령**.
 (A/B 경계는 휴리스틱 — 일부는 추정.)
@@ -47,6 +47,7 @@
 | `kosis-api` | KOSIS 국가통계 API 조회 |
 | `naver-api` | 네이버 오픈 API |
 | `naver-seo` | 네이버 SEO |
+| `kiwoom-trade-api` | 키움증권 REST API — 시세·차트·잔고 조회, 주문(모의/실전), 자동매매. 실전 주문은 게이트(2026-09-12) 전 금지. `kiwoomcli`(키체인 인증)·`~/projects/misc/auto-trading` 연동. |
 
 ### 발행 / 배포 / 알림
 | 스킬 | 용도 |
@@ -55,6 +56,7 @@
 | `postiz-publish` | Postiz API로 32개 SNS 즉시 발행·스케줄링 |
 | `app-launch-promo` | 신규 앱 멀티채널 홍보 오케스트레이터 — IG·Threads·X·TikTok(Claude in Chrome)+YouTube(youtube-upload API) 게재, inpock 링크 추가, disquiet 프로젝트+로그. 카피는 플랫폼별 생성, 영상은 입력. 즉시 자동발행. |
 | `telegram-bot` | 텔레그램 메시지·알림 발송 |
+| `send-sms` | macOS Messages(AppleScript)로 SMS·iMessage 발송 — 사용자 iPhone 문자 전달 경유, API·비용 없음 |
 
 ### 에이전트 워크플로우 / 루프 설계
 | 스킬 | 용도 |
@@ -70,6 +72,8 @@
 | `find-skills` | 스킬 탐색 헬퍼 |
 | `contribute-catalog` | 스킬 카탈로그 기여 |
 | `obsidian-vault` | Obsidian 볼트 작업 |
+| `google-tasks` | Google Tasks 공식 API로 할 일·메모 생성/조회 (OAuth 데스크톱, 토큰 캐시) |
+| `tuya-light` | Tuya 스마트 조명 제어 — 기분·상황 → 조명 매핑 |
 
 > ⚠️ `aso-audit`(App Store/Play ASO 감사)는 `~/.agents/skills/aso-audit` **심링크** — 설치팩 쪽 실체. play 워크플로우에서 함께 호출하지만 소스는 이 레포가 아님.
 
@@ -110,7 +114,7 @@
 
 ## 레포 메모
 
-- 원격: `github.com/kirin765/claude-skills`
+- 원격: `github.com/kirin765/skills`
 - 제외(.gitignore): `*-workspace/` 생성물, `dcinside-sales-safari/scripts/{raw,signals}/` 스크랩 코퍼스(재생성 가능, ~10MB), `brag/assets` 상용 오디오(라이선스 미검증).
 - 시크릿은 추적 안 함 — 스킬 코드는 `~/.config/*` / 환경변수 경로만 참조(키 값 미포함).
 - 플러그인 스킬은 더 이상 심링크로 제외하지 않음 — 루트에 실체 복사(`agentation`, `conclave`, `firecrawl-*`, `obsidian-vault` 등) + `agents/` 전체 스냅샷(2026-08-24).
