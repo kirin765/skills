@@ -6,9 +6,8 @@
 // 실행: 세션 cwd(brain)에서  node "<skill>/scripts/triage.mjs"
 // 전제: Chrome이 --remote-debugging-port=9222 --user-data-dir=~/chrome-cdp-profile 로 떠 있고 크몽 로그인 상태.
 
-import { chromium } from 'playwright';
+import { connectCdp } from './cdp.mjs';
 
-const CDP = process.env.KMONG_CDP || 'http://localhost:9222';
 const API = 'https://kmong.com/api/v5/inbox-groups';
 
 function fail(code, msg) {
@@ -16,50 +15,11 @@ function fail(code, msg) {
   process.exit(1);
 }
 
-// CDP 전용 Chrome(chrome-cdp-profile, 9222) 이 안 떠 있을 때 backup 으로 자동 기동한다.
-// 사용자의 평소 Chrome(Default 프로파일)은 별도 --user-data-dir 라 손대지 않는다.
-async function launchCdpChromeMacos() {
-  const os = await import('node:os');
-  const { spawn } = await import('node:child_process');
-  const path = await import('node:path');
-  const chromeBin = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  const profileDir = path.join(os.homedir(), 'chrome-cdp-profile');
-  try {
-    const child = spawn(chromeBin, [`--remote-debugging-port=9222`, `--user-data-dir=${profileDir}`], {
-      stdio: 'ignore', detached: true,
-    });
-    child.unref();
-  } catch (e) {
-    return { ok: false, msg: `CDP Chrome 기동 실패: ${e.message}` };
-  }
-  for (let i = 0; i < 15; i++) {
-    await new Promise(r => setTimeout(r, 1000));
-    try { await (await fetch(`${CDP}/json/version`)).json(); return { ok: true, msg: 'CDP Chrome 자동 기동 성공' }; }
-    catch {}
-  }
-  return { ok: false, msg: 'CDP Chrome 을 띄웠지만 15초 내 9222 응답 없음' };
-}
-
 let browser;
 try {
-  browser = await chromium.connectOverCDP(CDP);
+  browser = await connectCdp({ log: m => console.error(m) });
 } catch (e) {
-  if (process.platform === 'darwin' && CDP === 'http://localhost:9222') {
-    console.error('⏳ CDP 9222 미응답 — CDP 전용 Chrome(chrome-cdp-profile) 자동 기동 시도 중...');
-    const { ok, msg } = await launchCdpChromeMacos();
-    console.error((ok ? '✅ ' : '❌ ') + msg);
-    if (ok) {
-      try {
-        browser = await chromium.connectOverCDP(CDP);
-      } catch (e2) {
-        fail('no-cdp', `자동 기동 후에도 Chrome :9222 연결 실패 (${e2.message})`);
-      }
-    } else {
-      fail('no-cdp', `자동 기동 실패 — 디버그포트로 Chrome을 직접 띄워야 함 (${e.message})`);
-    }
-  } else {
-    fail('no-cdp', `Chrome :9222 연결 실패 — 디버그포트로 Chrome이 떠 있는지 확인 (${e.message})`);
-  }
+  fail('no-cdp', e.message);
 }
 
 const ctx = browser.contexts()[0];

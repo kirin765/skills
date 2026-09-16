@@ -98,7 +98,11 @@ def build_message(address, args):
         msgid = orig.get("Message-ID")
         if msgid:
             msg["In-Reply-To"] = msgid
-            msg["References"] = ((orig.get("References", "") or "") + " " + msgid).strip()
+            # 전달이 깊은 메일은 References 헤더에 개행이 섞여 있어 그대로 쓰면 전송이 깨진다.
+            # 헤더 값은 한 줄이어야 하므로 공백·개행을 정리해 다시 조립한다.
+            refs = " ".join((((orig.get("References", "") or "") + " " + msgid).split()))
+            if refs:
+                msg["References"] = refs
 
     if args.html:
         msg.set_content(body or "This message requires an HTML-capable client.")

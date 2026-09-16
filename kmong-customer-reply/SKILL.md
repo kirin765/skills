@@ -16,7 +16,7 @@ description: 크몽(kmong.com) 판매자 "봇메이커"의 고객 문의를 Clau
 ## 워크플로우
 
 ### 1. 메시지함 확인
-- `tabs_context_mcp`(createIfEmpty)로 탭 확보 후 `https://kmong.com/inboxes` 로 이동한다 (로그인되어 있다고 가정, 안 되어 있으면 사용자에게 알린다).
+- `tabs_context_mcp`(createIfEmpty)로 탭 확보 후 `https://kmong.com/inboxes` 로 이동한다. 로그인이 안 되어 있으면 CDP 모드의 `scripts/login.mjs`(네이버 간편로그인)로 세션을 확보한다 — 이메일/PW 로그인은 캡차를 유발할 수 있다.
 - "안 읽음" 필터를 눌러 새 문의를 확인한다. 사용자가 특정 고객을 지목했으면 해당 대화를 찾는다.
 - 새 문의가 없으면 그렇게 보고하고 종료한다.
 
@@ -29,6 +29,7 @@ description: 크몽(kmong.com) 판매자 "봇메이커"의 고객 문의를 Clau
 - 톤: 존댓말, 2~5문장, 명확하고 과장 없이. 끝에 다음 행동(자료 요청, 결제 안내 등) 한 줄.
 - **어미는 합쇼체로 통일**: "~했습니다/~입니다/~합니다/~됩니다". "~해요/~네요" 같은 요체, "~다/~본다" 같은 평서체(문어체) 둘 다 쓰지 않는다. 첫 인사말 "안녕하세요"만 관용구로 예외 허용.
 - 어휘는 컨설팅펌 격식 단어(재량권, 신뢰도 등) 대신 평이한 표현 사용 — 다만 일부러 어색하게 쓰지는 않고 자연스러운 실무자 말투 수준 유지.
+- **고객은 대부분 비개발자다.** 개발 용어(배포·DNS·세션·쿠키·API·리포지토리·서버·스키마 등)를 그대로 쓰지 말고 일상어로 풀어서 설명한다. 꼭 써야 하면 괄호나 한 줄로 쉬운 뜻을 붙인다. 예: "세션/쿠키" → "로그인 상태", "DNS 전환" → "주소 연결", "배포" → "사이트에 반영", "소스코드" → "만든 프로그램 파일". 기술적으로 정확한 것보다 고객이 이해하는 것이 우선이다.
 - 문장은 짧게 끊고 "다만/일단은/그 다음에" 같은 접속어로 연결. 항목이 여럿이면 번호(1~2, 3, 4)로 구분하되 불릿(•) 대신 문단 서술.
 - 정보가 부족해 견적을 확정할 수 없으면, 범위(예: "20~50만원")를 안내하고 확정에 필요한 자료(참고 사이트, 페이지 구성, 소스코드 등)를 요청하는 초안을 만든다.
 - 지식에 없는 기능·기술 가능 여부를 묻는 문의면 함부로 약속하지 말고 "확인 후 답변드리겠습니다" 초안 + 사용자에게 실제 가능한지 질문.
@@ -56,9 +57,24 @@ description: 크몽(kmong.com) 판매자 "봇메이커"의 고객 문의를 Clau
 위 워크플로우는 Claude-in-Chrome 확장으로 대화를 하나씩 클릭해 읽는다. 그 대신 **CDP(포트 9222) + Playwright 스크립트**로 인박스를 한 번에 감지·초안·발송하는 모드다. 스레드가 많거나, 폰(Claude 모바일 앱)에서 원격으로 돌릴 때 쓴다. **승인 게이트는 이 모드에서도 불변** — 발송은 승인된 것만.
 
 ### 전제조건
-- 맥에서 Chrome이 `--remote-debugging-port=9222 --user-data-dir=~/chrome-cdp-profile` 로 떠 있고 **그 프로필이 크몽 로그인 상태**. (상주 launchd: `~/.remote-trigger` 참조. 폰-온리면 필수.)
-- 세션 cwd는 `~/projects/misc/brain` (Playwright가 여기서 resolve됨).
-- 9222가 없으면 `triage.mjs`/`send.mjs` 가 먼저 CDP 전용 Chrome(chrome-cdp-profile) 자동 기동을 시도한다(최대 15초, 맥 로컬 세션 전제 — 폰 원격 트리거도 같은 맥에서 실행되므로 동일하게 동작). 그래도 실패하면 `{"ok":false,"error":"no-cdp"}` 를 반환 → 사용자에게 알리고 중단(폰이면 Telegram).
+- Chrome이 `--remote-debugging-port=9222 --user-data-dir=~/chrome-cdp-profile` 로 떠 있고 **그 프로필이 크몽 로그인 상태**여야 한다. (상주 launchd: `~/.remote-trigger` 참조. 폰-온리면 필수.)
+- **Linux(Omarchy/Hyprland) 격리 규칙**: CDP 창은 **반드시 `--class=cdpchrome`** 로 띄운다. 그래야 `hyprland.lua` 의 `^cdpchrome$` 규칙(`no_initial_focus`, `suppress_event="activatefocus"`, `float=false`, `workspace="3 silent"`)이 걸려 **작업공간 3에 뜨고 포커스를 안 뺏는다**. **주의(실측)**: `--class` 없이 띄우면 클래스가 실행 파일에 따라 `chromium-browser`(raw `/usr/lib/chromium/chromium`) 또는 `chromium`(래퍼 `/usr/bin/chromium`, 주력 브라우저와 동일)이 된다. `chromium` 은 주력 브라우저와 구분이 안 돼 안전망으로도 못 잡고 포커스를 뺏는다 → 그래서 `--class=cdpchrome` 가 필수다(`^chromium-browser$` 안전망은 raw 바이너리 케이스만 커버).
+- **모든 스크립트가 `scripts/cdp.mjs` 를 공유**한다. 9222 미응답 시 `connectCdp()` 가 CDP 전용 브라우저를 자동 기동하며, Linux 에선 `--class=cdpchrome` 를 붙이고 세션 env(`XDG_RUNTIME_DIR`/`WAYLAND_DISPLAY`)도 자동 보강한다. 맥에선 Google Chrome, Linux 에선 chromium. (이전의 맥 전용 `launchCdpChromeMacos` 는 제거됨.)
+- 세션 cwd는 `~/projects/misc/brain` (Playwright가 여기서 resolve됨). Playwright는 이 스킬의 `node_modules` 에 있으므로 스킬 디렉터리에서 실행해도 된다.
+- 그래도 기동 실패하면 `{"ok":false,"error":"no-cdp"}` 를 반환 → 사용자에게 알리고 중단(폰이면 Telegram).
+
+### 0. 로그인 — 네이버 간편로그인 우선 (이메일/PW 금지)
+CDP 프로필(chrome-cdp-profile)은 **네이버 세션을 유지**한다. 크몽 로그인이 풀렸으면 이메일/PW 대신 **네이버 간편로그인**을 쓴다 — 이메일 로그인은 캡차를 유발할 수 있고, 네이버 경로는 대개 세션 재사용으로 무캡차 통과한다.
+
+```
+node "<이 스킬>/scripts/login.mjs"            # 로그인 보장 (이미면 method:"already")
+node "<이 스킬>/scripts/login.mjs" --logout    # 크몽 쿠키만 지우고 네이버로 재로그인(계정 전환/테스트)
+```
+- 로그인 모달을 열고 `button:has(img[src*="naver-logo"])` 를 눌러 `/inboxes` 진입까지 대기 → `{"ok":true,"method":"naver"}`.
+- 실패 시 JSON으로 원인을 돌려준다 → 자동으로 풀지 말고 처리:
+  - `error:"captcha"` + `screenshot` → **텍스트형**이면 cdp-anywhere 스킬의 캡차 릴레이(`scripts/captcha_relay.py ask`)로 스크린샷을 사용자 본인에게 보내 답을 받아 입력·제출. **체크박스형**(reCAPTCHA/Turnstile)은 릴레이 불가 → CDP 창에서 사용자가 직접 클릭.
+  - `error:"naver-credentials-required"` → 네이버 세션까지 만료. 사용자에게 알리고 직접 입력받는다(자격증명 저장 금지).
+- 로그인 확인은 `triage.mjs` 가 401을 주는지로도 판별 가능(401=세션 만료).
 
 ### 1. 트리아지 (읽기 전용)
 ```

@@ -11,6 +11,10 @@ brain-capture-workspace/
 __pycache__/
 *.pyc
 
+# node / python packaging artifacts
+node_modules/
+*.egg-info/
+
 # API lookup caches (regenerable)
 **/.itad_cache.json
 **/.spy_cache.json

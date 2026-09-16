@@ -7,21 +7,29 @@
 | | 메인 Chrome | CDP Chrome |
 |---|---|---|
 | 프로파일 | Default (평소 쓰는 창) | `$HOME/chrome-cdp-profile` (전용) |
-| 용도 | Engine A (Claude in Chrome 확장) | Engine B (CDP + Playwright) |
+| 용도 | 사용자 일상용 | 이 스킬(cdp-anywhere) 및 다른 cdp-* 스킬 작업용 |
 | 포트 | 없음 | `--remote-debugging-port=9222` |
-| 판별 방법 | `list_connected_browsers` (확장 API) | `curl :9222/json/version` |
+| 판별 방법 | (이 스킬에서는 무관) | `curl :9222/json/version` |
 
-**절대 프로세스 이름(`ps aux | grep "Google Chrome"`, `pgrep Chrome`)만으로 두 인스턴스를 구분하려 하지 말 것** — 둘 다 같은 `Google Chrome` 바이너리라 목록에 같이 뜬다. 메인 Chrome 이 실행 중이어도 CDP Chrome 은 안 떠 있을 수 있고, 반대도 마찬가지. Engine B 작업 전엔 항상 `:9222` 응답으로만 CDP Chrome 의 존재를 판단한다.
+**절대 프로세스 이름(`ps aux | grep "Google Chrome"`, `pgrep Chrome`)만으로 두 인스턴스를 구분하려 하지 말 것** — 둘 다 같은 `Google Chrome` 바이너리라 목록에 같이 뜬다. 메인 Chrome 이 실행 중이어도 CDP Chrome 은 안 떠 있을 수 있고, 반대도 마찬가지. 작업 전엔 항상 `:9222` 응답으로만 CDP Chrome 의 존재를 판단한다.
 
 ## 자동 기동 (권장 — 먼저 시도)
 
 `scripts/probe.py` 는 CDP 가 미응답이면 **CDP Chrome 을 스스로 백그라운드로 띄우고** 최대 15초 재확인한다. 메인 Chrome 은 별도 `--user-data-dir` 라 손대지 않고 그대로 공존한다.
 
+또한 9222 가 이미 떠 있는데 `--class=cdpchrome` 없이 띄운 창이면(다른
+에이전트/도구의 실수) probe.py 가 잡아서 경고 후 자동 종료·재기동 한다
+(preflight, 2026-08-31). 경고만 하고 싶으면 `--no-autofix`.
+
 ```bash
-python3 ~/.claude/skills/cdp-anywhere/scripts/probe.py
+python3 <스킬 설치 경로>/cdp-anywhere/scripts/probe.py
+# 예: ~/.dsh/skills/cdp-anywhere (DSH), ~/.claude/skills/cdp-anywhere (Claude Code)
 ```
 
-이게 실패했을 때만(Chrome 설치 경로가 다르거나 권한 문제) 아래 수동 명령으로 사용자에게 직접 띄워달라고 요청한다.
+> probe.py 자동 기동: macOS 는 Google Chrome, Linux(Omarchy/Hyprland) 는
+> chromium + `--class=cdpchrome` 으로 띄운다 (Linux 지원은 2026-08-23 추가).
+
+이게 실패했을 때만(브라우저 설치 경로가 다르거나 권한 문제) 아래 수동 명령으로 사용자에게 직접 띄워달라고 요청한다.
 
 ## CDP 모드로 Chrome 수동 띄우기
 
@@ -32,12 +40,41 @@ python3 ~/.claude/skills/cdp-anywhere/scripts/probe.py
   --user-data-dir="$HOME/chrome-cdp-profile"
 ```
 
-### Linux
+### Linux (Omarchy/Hyprland, 실측 2026-08-23)
+반드시 `--class=cdpchrome` 을 붙인다. 이 머신의 주력 브라우저도 같은
+`chromium` 바이너리라, 클래스가 같으면 Hyprland 가 둘을 구분할 수 없어
+CDP 창이 열릴 때마다 포커스를 뺏는다. `--class` 는 Wayland app_id 까지
+바꾼다(실측 확인). `~/.config/hypr/hyprland.lua` 에 아래 규칙이 있어야
+한다(적용 완료):
+
+```lua
+-- CDP 전용 chromium: 열릴 때 포커스 안 뺏음, 작업공간 2로 격리
+o.window("cdpchrome", { no_initial_focus = true, float = true, workspace = "2 silent" })
+-- 안전망(2026-08-31): --class 없이 띄운 모든 chromium 창도 ws 2로 격리.
+-- 주력 브라우저는 chrome-<ext-id>-Default 클래스라 안 걸린다.
+o.window("chromium", { no_initial_focus = true, workspace = "2 silent" })
+```
+
 ```bash
-google-chrome \
+chromium \
+  --class=cdpchrome \
   --remote-debugging-port=9222 \
   --user-data-dir="$HOME/chrome-cdp-profile" &
 ```
+
+클래스 확인(규칙이 걸려 있는지):
+```bash
+hyprctl clients | grep "class: cdpchrome"
+```
+응답이 없으면 규칙 미적용 상태 — `--class=cdpchrome` 누락을 의심한다.
+
+- 효과: 창은 떠 있지만 포커스·작업공간을 안 뺏는다. 직접 보고 싶을 땐
+  워크스페이스 2로 가서 클릭하면 된다. `no_initial_focus`는 열릴 때만
+  막는다(수동 클릭 가능).
+- `--class=cdpchrome` 을 빠뜨리면 규칙이 안 걸린다. 기존 사용 명령에
+  이 플래그만 추가하면 된다.
+- 창 자체도 안 보고 싶으면 `--headless=new` 로 띄우면 창이 생기지 않는다.
+  단 사이트 봇 감지가 다를 수 있고 직접 로그인·확인 창이 없다.
 
 ### Windows (Git Bash / WSL)
 ```bash

@@ -8,6 +8,7 @@
 - [페이지네이션 — context.request 직접 호출](#페이지네이션--contextrequest-직접-호출)
 - [DOM scrape (폴백)](#dom-scrape-폴백)
 - [Interactive — click / fill / navigate](#interactive--click--fill--navigate)
+- [캡차 대응 — human-in-the-loop 릴레이](#캡차-대응--human-in-the-loop-릴레이)
 - [WebSocket / SSE 캡처](#websocket--sse-캡처)
 - [공통 유틸](#공통-유틸)
 
@@ -295,6 +296,72 @@ async with page.expect_file_chooser() as fc:
     await page.get_by_role("button", name="첨부").click()
 chooser = await fc.value
 await chooser.set_files("/path/to/file")
+```
+
+## 캡차 대응 — human-in-the-loop 릴레이
+
+자동 풀이(OCR/서비스/매크로) 금지. 텍스트형 캡차를 만나면 스크린샷을 사용자 본인에게
+전송하고 답을 받아 입력·제출한다. 전체 워크플로우·채널 자격증명: `references/captcha-relay.md`.
+전송·폴링은 `scripts/captcha_relay.py` 가 담당하고, 아래는 캡처 부분만.
+
+### 캡차 감지 + 캡처
+```python
+CAPTCHA_SELECTORS = (
+    "[id*='captcha']", "[name*='captcha']", "[data-sitekey]",
+    "iframe[src*='recaptcha']", "iframe[src*='hcaptcha']",
+    "iframe[src*='turnstile']", "iframe[src*='challenges.cloudflare']",
+)
+
+async def detect_and_capture(page, out_png: str) -> bool:
+    """캡차 요소/iframe 이 보이면 스크롤 후 스크린샷. 발견 여부 반환."""
+    found = False
+    for sel in CAPTCHA_SELECTORS:
+        loc = page.locator(sel).first
+        if await loc.count():
+            found = True
+            try:
+                await loc.scroll_into_view_if_needed(timeout=3000)
+            except Exception:
+                pass
+            break
+    if not found:
+        return False
+    await page.wait_for_timeout(500)
+    try:
+        await page.locator(",".join(CAPTCHA_SELECTORS)).first.screenshot(path=out_png)
+        if not (await asyncio.to_thread(lambda: __import__("os").path.getsize(out_png) > 500)):
+            raise RuntimeError("blank")
+    except Exception:
+        # cross-origin iframe(OOPIF) 은 요소 캡처가 빈 이미지 → 뷰포트 폴백
+        await page.screenshot(path=out_png)
+    return True
+```
+
+### 릴레이 + 답 받기 (스크립트 위임)
+```bash
+python3 scripts/captcha_relay.py ask \
+  --site example.com \
+  --image /tmp/cdp-anywhere/challenge-example.png \
+  --prompt "이미지 속 문자를 입력하세요" \
+  --timeout 300
+# 성공: ANSWER=<정규화된 답> (exit 0) / 답 없음: exit 2 / 채널 불가: exit 1
+```
+
+### 답 입력 + 제출 + 검증
+```python
+# 입력란 후보 → fill, 안 되면 click 후 press_sequentially
+inp = page.locator("input[name*='captcha'], input[name*='answer'], input[autocomplete='off']").first
+try:
+    await inp.fill(answer)
+except Exception:
+    await inp.click()
+    await inp.press_sequentially(answer)
+# 제출 버튼 (텍스트 기반 우선)
+btn = page.get_by_role("button", name="Verify").first
+if not await btn.count():
+    btn = page.get_by_role("button", name="확인").first
+await btn.click()
+# 검증: 성공이면 다음 단계 진행 / "틀림·다시 시도" 면 같은 --id 로 한 번 재시도 후 보고
 ```
 
 ## WebSocket / SSE 캡처
