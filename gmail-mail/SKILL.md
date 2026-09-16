@@ -1,3 +1,8 @@
+---
+name: gmail-mail
+description: Send and read Gmail with Python stdlib SMTP/IMAP using a Google app password (no browser, no pip installs).
+---
+
 # Gmail (SMTP send + IMAP read)
 
 Send and read `@gmail.com` email using Python stdlib only (`smtplib`/`imaplib`) — no pip installs, no browser. Two scripts:
