@@ -4,7 +4,7 @@
 
 Agent skills by [@kirin765](https://github.com/kirin765) — research workflows, Korean-market tooling, app/game publishing, distribution, and Steam recommendations. Built for Claude Code; works with any agent that supports the [skills](https://github.com/vercel-labs/skills) format.
 
-병합됨: `kirin765/claude-skills` → `kirin765/skills` (2026-08-24). 전체 218개 스킬(루트 83 + `agents/` 134 + `dsh/` 1) 통합.
+병합됨: `kirin765/claude-skills` → `kirin765/skills` (2026-08-24). 전체 224개 스킬(루트 89 + `agents/` 134 + `dsh/` 1) 통합.
 
 ## Install
 
@@ -16,7 +16,7 @@ Or install a single skill by pointing at its directory.
 
 ## Structure
 
-- **루트** — 사용자 본인 운영 스킬 83개 (한국 시장·발행·앱 출시·CDP 자동화 등).
+- **루트** — 사용자 본인 운영 스킬 89개 (한국 시장·발행·앱 출시·CDP 자동화 등).
 - **`agents/`** — 플러그인/번들 스킬 실체 백업 134개 (`~/.agents/skills` 스냅샷). 이름 충돌 시 루트가 우선 — 이 둘은 기능 중복이 아니라 소스 위치가 다름.
 - **`dsh/`** — DSH 하네스용 스킬 (`apps-in-toss-app-submission`).
 
@@ -42,8 +42,13 @@ Or install a single skill by pointing at its directory.
 | [kr-sales-safari](kr-sales-safari/) | Korean community Sales Safari → SaaS idea discovery (Mom Test). |
 | [gmail-mail](gmail-mail/) | Gmail send via authenticated session. |
 | [telegram-bot](telegram-bot/) | Telegram message/notification send (creds from `~/niche-finder/.env`). |
+| [send-sms](send-sms/) | SMS/iMessage send from macOS Messages via AppleScript — routed through the user's own iPhone, no API or cost. |
+| [kiwoom-trade-api](kiwoom-trade-api/) | Kiwoom (키움증권) REST API — quotes/charts/balance/orders + auto-trading (paper/demo/live). Live orders gated (2026-09-12) until demo validation passes. |
+| [google-tasks](google-tasks/) | Google Tasks create/list via official REST API (OAuth desktop flow, token cache reuse). |
+| [tuya-light](tuya-light/) | Tuya smart-light control — mood/situation → lighting mapping. |
 | [brag](brag/) | Highlight/project brag-doc generator. |
-| + 64 more under 루트 (naver-cafe-scrape, ppomppu-clien-scrape, reddit-cdp-coach, careful-factcheck, cafe24-app-dev/test, coupon/naver-commerce/toss APIs, media/hyperframes video pipeline, ubuntu-server, ASO/SEO tooling…) | |
+| [english-scan](english-scan/) | Always-on session logger of the user's own messages → `~/.dsh/english-log/corpus.md`; on "what's the problem with my english?" corrects errors (grammar/vocabulary/naturalness, before→after) and profiles proficiency (strengths, repeated weak patterns, level estimate, trend), appending analyses to `analysis.md`. |
+| + 65 more under 루트 (naver-cafe-scrape, ppomppu-clien-scrape, reddit-cdp-coach, careful-factcheck, cafe24-app-dev/test, coupon/naver-commerce/toss APIs, media/hyperframes video pipeline, ubuntu-server, ASO/SEO tooling…) | |
 
 전체 목록: `SKILLS-INVENTORY.md` (분류 기준 A 사용자 제작 / B 설치 스킬팩 / C 플러그인 네임스페이스 / D 빌트인 명령).
 
